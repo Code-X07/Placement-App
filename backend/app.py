@@ -50,6 +50,9 @@ def create_app(config=None):
         db.create_all()
         _seed_admin()
 
+    from routes.auth import auth_bp
+    app.register_blueprint(auth_bp)
+
     return app
 
 def _seed_admin():
