@@ -52,7 +52,11 @@ def login():
     email = data.get('email', '').strip().lower()
     password = data.get('password', '')
     user = User.query.filter_by(email=email).first()
-    if not user or not bcrypt.check_password_hash(user.password_hash, password):
+    dummy_hash = bcrypt.generate_password_hash('__dummy__').decode('utf-8')
+    password_valid = bcrypt.check_password_hash(
+        user.password_hash if user else dummy_hash, password
+    )
+    if not user or not password_valid:
         return jsonify({'error': 'Invalid credentials', 'code': 'INVALID_CREDENTIALS'}), 401
     if not user.is_active:
         return jsonify({'error': 'Account deactivated', 'code': 'INACTIVE'}), 403
