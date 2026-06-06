@@ -51,7 +51,9 @@ def create_app(config=None):
         _seed_admin()
 
     from routes.auth import auth_bp
+    from routes.admin import admin_bp
     app.register_blueprint(auth_bp)
+    app.register_blueprint(admin_bp)
 
     return app
 
