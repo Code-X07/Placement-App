@@ -2,6 +2,7 @@ import json
 from datetime import date
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import get_jwt_identity
+from markupsafe import escape
 from routes.decorators import role_required
 from models.models import db, CompanyProfile, PlacementDrive, Application
 
@@ -48,17 +49,27 @@ def create_drive():
     for field in required:
         if field not in data:
             return jsonify({'error': f'{field} required', 'code': 'MISSING_FIELDS'}), 400
-    deadline = date.fromisoformat(data['application_deadline'])
+    try:
+        deadline = date.fromisoformat(data['application_deadline'])
+    except (ValueError, TypeError):
+        return jsonify({'error': 'Invalid date format. Use YYYY-MM-DD',
+                        'code': 'INVALID_DATE_FORMAT'}), 400
     if deadline <= date.today():
         return jsonify({'error': 'Deadline must be a future date',
                         'code': 'INVALID_DEADLINE'}), 400
+    try:
+        ctc = float(data['ctc'])
+        eligibility_cgpa = float(data['eligibility_cgpa'])
+    except (ValueError, TypeError):
+        return jsonify({'error': 'ctc and eligibility_cgpa must be numbers',
+                        'code': 'INVALID_NUMBER'}), 400
     drive = PlacementDrive(
         company_id=cp.id,
         title=data['title'],
         description=data['description'],
-        ctc=float(data['ctc']),
+        ctc=ctc,
         location=data['location'],
-        eligibility_cgpa=float(data['eligibility_cgpa']),
+        eligibility_cgpa=eligibility_cgpa,
         eligibility_branch=json.dumps(data['eligibility_branch']),
         application_deadline=deadline,
         status='pending',
@@ -115,14 +126,14 @@ def offer_letter(app_id):
     html = f"""<!DOCTYPE html>
 <html><head><title>Offer Letter</title></head><body>
 <h1>Offer Letter</h1>
-<p>Dear <strong>{student.name}</strong>,</p>
-<p>We are pleased to offer you the position of <strong>{drive.title}</strong>
-at <strong>{drive.company.company_name}</strong>.</p>
+<p>Dear <strong>{escape(student.name)}</strong>,</p>
+<p>We are pleased to offer you the position of <strong>{escape(drive.title)}</strong>
+at <strong>{escape(drive.company.company_name)}</strong>.</p>
 <ul>
-  <li>Location: {drive.location}</li>
-  <li>CTC: {drive.ctc} LPA</li>
+  <li>Location: {escape(drive.location)}</li>
+  <li>CTC: {escape(str(drive.ctc))} LPA</li>
 </ul>
 <p>Congratulations and welcome aboard!</p>
-<p>HR Team, {drive.company.company_name}</p>
+<p>HR Team, {escape(drive.company.company_name)}</p>
 </body></html>"""
     return html, 200, {'Content-Type': 'text/html'}
