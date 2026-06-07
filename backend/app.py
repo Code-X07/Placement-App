@@ -38,8 +38,13 @@ def create_app(config=None):
 
     class ContextTask(celery.Task):
         def __call__(self, *args, **kwargs):
-            with app.app_context():
+            from flask import current_app, has_app_context
+            # If already in an app context, use that; otherwise use the one we have
+            if has_app_context():
                 return self.run(*args, **kwargs)
+            else:
+                with app.app_context():
+                    return self.run(*args, **kwargs)
 
     celery.Task = ContextTask
 
