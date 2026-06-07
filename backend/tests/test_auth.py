@@ -70,3 +70,4 @@ def test_cors_preflight(client):
                           headers={'Origin': 'http://localhost:5173',
                                    'Access-Control-Request-Method': 'POST'})
     assert 'Access-Control-Allow-Origin' in resp.headers
+    assert resp.headers.get('Access-Control-Allow-Origin') == 'http://localhost:5173'
