@@ -114,7 +114,7 @@ def apply(drive_id):
     db.session.add(app_obj)
     db.session.commit()
     from cache import cache_delete
-    cache_delete('admin:dashboard:stats')
+    cache_delete('admin:dashboard:stats', 'drives:approved:list')
     return jsonify({'message': 'Applied successfully', 'application_id': app_obj.id}), 201
 
 @student_bp.route('/applications', methods=['GET'])

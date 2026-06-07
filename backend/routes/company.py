@@ -45,6 +45,8 @@ def update_profile():
         if field in data:
             setattr(cp, field, data[field])
     db.session.commit()
+    from cache import cache_delete
+    cache_delete(f'company:{get_jwt_identity()}:dashboard')
     return jsonify({'message': 'Profile updated'}), 200
 
 @company_bp.route('/drives', methods=['POST'])
@@ -84,6 +86,8 @@ def create_drive():
     )
     db.session.add(drive)
     db.session.commit()
+    from cache import cache_delete
+    cache_delete(f'company:{get_jwt_identity()}:dashboard', 'admin:dashboard:stats')
     return jsonify({'id': drive.id, 'title': drive.title, 'status': drive.status}), 201
 
 @company_bp.route('/drives/<int:drive_id>/applications', methods=['GET'])
