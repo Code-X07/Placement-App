@@ -30,6 +30,7 @@ def export_student_data(job_id):
         job.file_path = f'uploads/exports/{filename}'
         db.session.commit()
     except Exception:
+        db.session.rollback()
         job.status = 'failed'
         db.session.commit()
         raise
