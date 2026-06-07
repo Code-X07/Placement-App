@@ -90,3 +90,13 @@ def test_offer_letter_only_for_selected(client, approved_company_headers, approv
                       headers=approved_company_headers)
     assert resp.status_code == 200
     assert b'Offer Letter' in resp.data
+
+def test_create_drive_branch_must_be_list(client, approved_company_headers):
+    resp = client.post('/api/company/drives', headers=approved_company_headers, json={
+        'title': 'Bad Branch', 'description': 'x', 'ctc': 10.0, 'location': 'x',
+        'eligibility_cgpa': 6.0,
+        'eligibility_branch': 'CS',
+        'application_deadline': str(date.today() + timedelta(days=10))
+    })
+    assert resp.status_code == 400
+    assert resp.json['code'] == 'INVALID_BRANCH_FORMAT'

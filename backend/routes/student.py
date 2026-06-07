@@ -185,9 +185,13 @@ def _eligible_drives(sp):
     return result
 
 def _drive_dict(d):
+    try:
+        branches = json.loads(d.eligibility_branch) if d.eligibility_branch else []
+    except (ValueError, TypeError):
+        branches = []
     return {
         'id': d.id, 'title': d.title, 'company': d.company.company_name,
         'ctc': d.ctc, 'location': d.location, 'deadline': str(d.application_deadline),
         'eligibility_cgpa': d.eligibility_cgpa,
-        'eligibility_branch': json.loads(d.eligibility_branch) if d.eligibility_branch else []
+        'eligibility_branch': branches,
     }

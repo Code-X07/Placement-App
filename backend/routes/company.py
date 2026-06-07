@@ -73,6 +73,9 @@ def create_drive():
     except (ValueError, TypeError):
         return jsonify({'error': 'ctc and eligibility_cgpa must be numbers',
                         'code': 'INVALID_NUMBER'}), 400
+    if not isinstance(data['eligibility_branch'], list):
+        return jsonify({'error': 'eligibility_branch must be a list of strings',
+                        'code': 'INVALID_BRANCH_FORMAT'}), 400
     drive = PlacementDrive(
         company_id=cp.id,
         title=data['title'],
