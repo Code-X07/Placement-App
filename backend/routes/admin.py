@@ -101,6 +101,8 @@ def list_students():
 @role_required('admin')
 def deactivate_student(user_id):
     user = User.query.get_or_404(user_id)
+    if user.role != 'student':
+        return jsonify({'error': 'Target is not a student', 'code': 'NOT_STUDENT'}), 400
     user.is_active = False
     db.session.commit()
     return jsonify({'message': 'Student deactivated'}), 200

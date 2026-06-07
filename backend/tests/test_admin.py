@@ -61,3 +61,11 @@ def test_list_drives(client, admin_headers, approved_drive):
     resp = client.get('/api/admin/drives', headers=admin_headers)
     assert resp.status_code == 200
     assert any(d['title'] == 'Test Drive' for d in resp.json)
+
+def test_deactivate_non_student_blocked(client, admin_headers, company_user, app):
+    with app.app_context():
+        from models.models import User
+        u = User.query.filter_by(email='co@test.com').first()
+        resp = client.put(f'/api/admin/students/{u.id}/deactivate', headers=admin_headers)
+        assert resp.status_code == 400
+        assert resp.json['code'] == 'NOT_STUDENT'
