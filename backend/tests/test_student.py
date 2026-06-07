@@ -75,7 +75,8 @@ def test_export_status_idor(client, student_user):
     })
     stu2_headers = {'Authorization': f"Bearer {stu2.json['token']}"}
     resp = client.get(f'/api/student/export/{job_id}', headers=stu2_headers)
-    assert resp.status_code in (403, 404)
+    assert resp.status_code == 403
+    assert resp.json['code'] == 'FORBIDDEN'
 
 def test_export_download(client, student_user):
     headers = _stu(client, student_user)
