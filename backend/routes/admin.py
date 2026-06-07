@@ -47,8 +47,10 @@ def approve_company(company_id):
 def reject_company(company_id):
     cp = CompanyProfile.query.get_or_404(company_id)
     cp.approval_status = 'rejected'
+    PlacementDrive.query.filter_by(company_id=cp.id, status='approved').update(
+        {'status': 'rejected'})
     db.session.commit()
-    cache_delete('admin:dashboard:stats')
+    cache_delete('admin:dashboard:stats', 'drives:approved:list')
     return jsonify({'message': 'Company rejected'}), 200
 
 @admin_bp.route('/companies/<int:company_id>/blacklist', methods=['PUT'])
@@ -57,8 +59,10 @@ def blacklist_company(company_id):
     cp = CompanyProfile.query.get_or_404(company_id)
     cp.approval_status = 'rejected'
     cp.user.is_active = False
+    PlacementDrive.query.filter_by(company_id=cp.id, status='approved').update(
+        {'status': 'rejected'})
     db.session.commit()
-    cache_delete('admin:dashboard:stats')
+    cache_delete('admin:dashboard:stats', 'drives:approved:list')
     return jsonify({'message': 'Company blacklisted'}), 200
 
 @admin_bp.route('/drives', methods=['GET'])

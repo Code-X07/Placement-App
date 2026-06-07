@@ -69,3 +69,38 @@ def test_deactivate_non_student_blocked(client, admin_headers, company_user, app
         resp = client.put(f'/api/admin/students/{u.id}/deactivate', headers=admin_headers)
         assert resp.status_code == 400
         assert resp.json['code'] == 'NOT_STUDENT'
+
+def test_blacklisted_company_drives_hidden(client, admin_headers,
+                                           approved_company_headers, approved_drive,
+                                           student_user, app):
+    stu_headers = {'Authorization': f"Bearer {student_user['token']}"}
+    client.put('/api/student/profile', headers=stu_headers, json={
+        'name': 'Alice', 'phone': '9876543210', 'branch': 'CS', 'year': 3, 'cgpa': 8.0
+    })
+    # Confirm drive visible before blacklist
+    before = client.get('/api/student/drives', headers=stu_headers)
+    assert any(d['id'] == approved_drive for d in before.json)
+
+    with app.app_context():
+        from models.models import CompanyProfile
+        cp = CompanyProfile.query.filter_by(company_name='ApprovedCorp').first()
+        client.put(f'/api/admin/companies/{cp.id}/blacklist', headers=admin_headers)
+
+    after = client.get('/api/student/drives', headers=stu_headers)
+    assert all(d['id'] != approved_drive for d in after.json)
+
+
+def test_rejected_company_drives_hidden(client, admin_headers,
+                                        approved_company_headers, approved_drive,
+                                        student_user, app):
+    stu_headers = {'Authorization': f"Bearer {student_user['token']}"}
+    client.put('/api/student/profile', headers=stu_headers, json={
+        'name': 'Alice', 'phone': '9876543210', 'branch': 'CS', 'year': 3, 'cgpa': 8.0
+    })
+    with app.app_context():
+        from models.models import CompanyProfile
+        cp = CompanyProfile.query.filter_by(company_name='ApprovedCorp').first()
+        client.put(f'/api/admin/companies/{cp.id}/reject', headers=admin_headers)
+
+    after = client.get('/api/student/drives', headers=stu_headers)
+    assert all(d['id'] != approved_drive for d in after.json)
