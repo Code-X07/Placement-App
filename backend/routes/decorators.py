@@ -9,7 +9,7 @@ def role_required(required_role):
         def wrapper(*args, **kwargs):
             verify_jwt_in_request()
             user_id = get_jwt_identity()
-            user = User.query.get(user_id)
+            user = User.query.get(int(user_id))
             if not user or not user.is_active:
                 return jsonify({'error': 'Account deactivated or not found',
                                 'code': 'INACTIVE'}), 403

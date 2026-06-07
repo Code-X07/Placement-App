@@ -11,7 +11,7 @@ student_bp = Blueprint('student', __name__, url_prefix='/api/student')
 
 def _own_student():
     user_id = get_jwt_identity()
-    return StudentProfile.query.filter_by(user_id=user_id).first_or_404()
+    return StudentProfile.query.filter_by(user_id=int(user_id)).first_or_404()
 
 @student_bp.route('/dashboard', methods=['GET'])
 @role_required('student')

@@ -10,7 +10,7 @@ company_bp = Blueprint('company', __name__, url_prefix='/api/company')
 
 def _own_company():
     user_id = get_jwt_identity()
-    return CompanyProfile.query.filter_by(user_id=user_id).first_or_404()
+    return CompanyProfile.query.filter_by(user_id=int(user_id)).first_or_404()
 
 @company_bp.route('/dashboard', methods=['GET'])
 @role_required('company')
