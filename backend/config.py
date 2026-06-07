@@ -35,6 +35,6 @@ class TestConfig(Config):
     JWT_SECRET_KEY = 'test-jwt-secret'
     CELERY_TASK_ALWAYS_EAGER = True
     MAIL_SUPPRESS_SEND = True
-    REDIS_URL = 'redis://localhost:6379/1'
-    CELERY_BROKER_URL = 'redis://localhost:6379/1'
-    CELERY_RESULT_BACKEND = 'redis://localhost:6379/1'
+    REDIS_URL = None
+    CELERY_BROKER_URL = 'memory://'
+    CELERY_RESULT_BACKEND = 'cache+memory://'

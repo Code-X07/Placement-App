@@ -1,18 +1,23 @@
 from flask import Blueprint, request, jsonify
 from routes.decorators import role_required
 from models.models import db, User, StudentProfile, CompanyProfile, PlacementDrive, Application
+from cache import cache_get, cache_set, cache_delete
 
 admin_bp = Blueprint('admin', __name__, url_prefix='/api/admin')
 
 @admin_bp.route('/dashboard', methods=['GET'])
 @role_required('admin')
 def dashboard():
+    cached = cache_get('admin:dashboard:stats')
+    if cached:
+        return jsonify(cached), 200
     stats = {
         'students': User.query.filter_by(role='student').count(),
         'companies': CompanyProfile.query.count(),
         'drives': PlacementDrive.query.count(),
         'applications': Application.query.count(),
     }
+    cache_set('admin:dashboard:stats', stats, ttl=300)
     return jsonify(stats), 200
 
 @admin_bp.route('/companies', methods=['GET'])
@@ -34,6 +39,7 @@ def approve_company(company_id):
     cp = CompanyProfile.query.get_or_404(company_id)
     cp.approval_status = 'approved'
     db.session.commit()
+    cache_delete('admin:dashboard:stats', 'drives:approved:list')
     return jsonify({'message': 'Company approved'}), 200
 
 @admin_bp.route('/companies/<int:company_id>/reject', methods=['PUT'])
@@ -42,6 +48,7 @@ def reject_company(company_id):
     cp = CompanyProfile.query.get_or_404(company_id)
     cp.approval_status = 'rejected'
     db.session.commit()
+    cache_delete('admin:dashboard:stats')
     return jsonify({'message': 'Company rejected'}), 200
 
 @admin_bp.route('/companies/<int:company_id>/blacklist', methods=['PUT'])
@@ -51,6 +58,7 @@ def blacklist_company(company_id):
     cp.approval_status = 'rejected'
     cp.user.is_active = False
     db.session.commit()
+    cache_delete('admin:dashboard:stats')
     return jsonify({'message': 'Company blacklisted'}), 200
 
 @admin_bp.route('/drives', methods=['GET'])
@@ -68,6 +76,7 @@ def approve_drive(drive_id):
     drive = PlacementDrive.query.get_or_404(drive_id)
     drive.status = 'approved'
     db.session.commit()
+    cache_delete('admin:dashboard:stats', 'drives:approved:list')
     return jsonify({'message': 'Drive approved'}), 200
 
 @admin_bp.route('/drives/<int:drive_id>/reject', methods=['PUT'])
@@ -76,6 +85,7 @@ def reject_drive(drive_id):
     drive = PlacementDrive.query.get_or_404(drive_id)
     drive.status = 'rejected'
     db.session.commit()
+    cache_delete('admin:dashboard:stats', 'drives:approved:list')
     return jsonify({'message': 'Drive rejected'}), 200
 
 @admin_bp.route('/students', methods=['GET'])

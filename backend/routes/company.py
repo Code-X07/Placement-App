@@ -15,6 +15,12 @@ def _own_company():
 @company_bp.route('/dashboard', methods=['GET'])
 @role_required('company')
 def dashboard():
+    from cache import cache_get, cache_set
+    user_id = get_jwt_identity()
+    cache_key = f'company:{user_id}:dashboard'
+    cached = cache_get(cache_key)
+    if cached:
+        return jsonify(cached), 200
     cp = _own_company()
     drives = PlacementDrive.query.filter_by(company_id=cp.id).all()
     drive_data = [{
@@ -22,11 +28,13 @@ def dashboard():
         'deadline': str(d.application_deadline),
         'applicant_count': Application.query.filter_by(drive_id=d.id).count()
     } for d in drives]
-    return jsonify({
+    result = {
         'company': {'id': cp.id, 'company_name': cp.company_name,
                     'approval_status': cp.approval_status},
         'drives': drive_data
-    }), 200
+    }
+    cache_set(cache_key, result, ttl=300)
+    return jsonify(result), 200
 
 @company_bp.route('/profile', methods=['PUT'])
 @role_required('company')
@@ -109,6 +117,8 @@ def update_application_status(app_id):
                         'code': 'INVALID_STATUS'}), 400
     app_obj.status = new_status
     db.session.commit()
+    from cache import cache_delete
+    cache_delete(f'company:{get_jwt_identity()}:dashboard', 'admin:dashboard:stats')
     return jsonify({'message': 'Status updated', 'status': new_status}), 200
 
 @company_bp.route('/applications/<int:app_id>/offer-letter', methods=['GET'])

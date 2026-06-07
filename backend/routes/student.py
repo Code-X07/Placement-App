@@ -66,8 +66,25 @@ def upload_resume():
 @student_bp.route('/drives', methods=['GET'])
 @role_required('student')
 def list_drives():
+    from cache import cache_get, cache_set
     sp = _own_student()
-    return jsonify([_drive_dict(d) for d in _eligible_drives(sp)]), 200
+    cache_key = 'drives:approved:list'
+    all_drives = cache_get(cache_key)
+    if all_drives is None:
+        raw = PlacementDrive.query.filter_by(status='approved').all()
+        all_drives = [_drive_dict(d) for d in raw]
+        cache_set(cache_key, all_drives, ttl=300)
+    today = str(date.today())
+    result = []
+    for d in all_drives:
+        if d['deadline'] < today:
+            continue
+        if sp.cgpa is not None and d['eligibility_cgpa'] is not None and sp.cgpa < d['eligibility_cgpa']:
+            continue
+        if sp.branch and d['eligibility_branch'] and sp.branch not in d['eligibility_branch']:
+            continue
+        result.append(d)
+    return jsonify(result), 200
 
 @student_bp.route('/drives/<int:drive_id>/apply', methods=['POST'])
 @role_required('student')
@@ -96,6 +113,8 @@ def apply(drive_id):
     app_obj = Application(student_id=sp.id, drive_id=drive_id, status='applied')
     db.session.add(app_obj)
     db.session.commit()
+    from cache import cache_delete
+    cache_delete('admin:dashboard:stats')
     return jsonify({'message': 'Applied successfully', 'application_id': app_obj.id}), 201
 
 @student_bp.route('/applications', methods=['GET'])

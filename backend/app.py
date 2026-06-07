@@ -42,7 +42,11 @@ def create_app(config=None):
     celery.Task = ContextTask
 
     try:
-        redis_client = redis_lib.from_url(app.config['REDIS_URL'])
+        redis_url = app.config.get('REDIS_URL')
+        if redis_url:
+            redis_client = redis_lib.from_url(redis_url)
+        else:
+            redis_client = None
     except Exception:
         redis_client = None
 
