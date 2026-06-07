@@ -26,12 +26,12 @@ def send_monthly_report():
 
     drives = PlacementDrive.query.filter(
         PlacementDrive.created_at >= start,
-        PlacementDrive.created_at <= end,
+        PlacementDrive.created_at < first,
     ).count()
 
     base_q = Application.query.filter(
         Application.applied_at >= start,
-        Application.applied_at <= end,
+        Application.applied_at < first,
     )
     total = base_q.count()
     shortlisted = base_q.filter(Application.status == 'shortlisted').count()
