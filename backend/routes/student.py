@@ -83,7 +83,10 @@ def apply(drive_id):
         return jsonify({'error': 'CGPA below drive requirement',
                         'code': 'INELIGIBLE_CGPA'}), 400
     if sp.branch and drive.eligibility_branch:
-        allowed = json.loads(drive.eligibility_branch)
+        try:
+            allowed = json.loads(drive.eligibility_branch)
+        except (ValueError, TypeError):
+            allowed = []
         if sp.branch not in allowed:
             return jsonify({'error': 'Branch not eligible for this drive',
                             'code': 'INELIGIBLE_BRANCH'}), 400
@@ -137,10 +140,14 @@ def _eligible_drives(sp):
     for d in drives:
         if d.application_deadline < date.today():
             continue
-        if sp.cgpa is not None and d.eligibility_cgpa and sp.cgpa < d.eligibility_cgpa:
+        if sp.cgpa is not None and d.eligibility_cgpa is not None and sp.cgpa < d.eligibility_cgpa:
             continue
         if sp.branch and d.eligibility_branch:
-            if sp.branch not in json.loads(d.eligibility_branch):
+            try:
+                branches = json.loads(d.eligibility_branch)
+            except (ValueError, TypeError):
+                branches = []
+            if sp.branch not in branches:
                 continue
         result.append(d)
     return result
