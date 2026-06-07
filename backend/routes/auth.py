@@ -5,6 +5,8 @@ from models.models import db, User, StudentProfile, CompanyProfile
 
 auth_bp = Blueprint('auth', __name__, url_prefix='/api/auth')
 
+_DUMMY_HASH = bcrypt.generate_password_hash('__dummy__').decode('utf-8')
+
 @auth_bp.route('/register', methods=['POST'])
 def register():
     data = request.get_json()
@@ -52,9 +54,8 @@ def login():
     email = data.get('email', '').strip().lower()
     password = data.get('password', '')
     user = User.query.filter_by(email=email).first()
-    dummy_hash = bcrypt.generate_password_hash('__dummy__').decode('utf-8')
     password_valid = bcrypt.check_password_hash(
-        user.password_hash if user else dummy_hash, password
+        user.password_hash if user else _DUMMY_HASH, password
     )
     if not user or not password_valid:
         return jsonify({'error': 'Invalid credentials', 'code': 'INVALID_CREDENTIALS'}), 401
