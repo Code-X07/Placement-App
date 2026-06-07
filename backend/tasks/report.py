@@ -1,8 +1,11 @@
 from datetime import date, timedelta
+import logging
 from flask import render_template_string, current_app
 from flask_mail import Message
 from app import celery, mail
 from models.models import PlacementDrive, Application
+
+logger = logging.getLogger(__name__)
 
 _REPORT_TMPL = """<html><body>
 <h2>Monthly Placement Activity Report — {{ month }}</h2>
@@ -44,4 +47,8 @@ def send_monthly_report():
         recipients=[current_app.config['ADMIN_EMAIL']],
         html=html,
     )
-    mail.send(msg)
+    try:
+        mail.send(msg)
+        logger.info(f'Monthly report sent for {end.strftime("%B %Y")}')
+    except Exception as e:
+        logger.error(f'Failed to send monthly report: {e}')
