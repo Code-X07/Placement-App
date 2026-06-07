@@ -1,7 +1,7 @@
 import os
 import json
 from datetime import date
-from flask import Blueprint, request, jsonify, current_app
+from flask import Blueprint, request, jsonify, current_app, send_from_directory
 from flask_jwt_extended import get_jwt_identity
 from werkzeug.utils import secure_filename
 from routes.decorators import role_required
@@ -150,8 +150,21 @@ def export_status(job_id):
         return jsonify({'error': 'Access denied', 'code': 'FORBIDDEN'}), 403
     resp = {'job_id': job.id, 'status': job.status}
     if job.status == 'done' and job.file_path:
-        resp['download_url'] = f'/static/exports/{os.path.basename(job.file_path)}'
+        resp['download_url'] = f'/api/student/export/{job.id}/download'
     return jsonify(resp), 200
+
+@student_bp.route('/export/<int:job_id>/download', methods=['GET'])
+@role_required('student')
+def download_export(job_id):
+    sp = _own_student()
+    job = ExportJob.query.get_or_404(job_id)
+    if job.student_id != sp.id:
+        return jsonify({'error': 'Access denied', 'code': 'FORBIDDEN'}), 403
+    if job.status != 'done' or not job.file_path:
+        return jsonify({'error': 'Export not ready', 'code': 'NOT_READY'}), 404
+    directory = os.path.join(current_app.root_path, 'uploads', 'exports')
+    filename = os.path.basename(job.file_path)
+    return send_from_directory(directory, filename, as_attachment=True)
 
 def _eligible_drives(sp):
     drives = PlacementDrive.query.filter_by(status='approved').all()

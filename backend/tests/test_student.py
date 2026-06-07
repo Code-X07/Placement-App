@@ -76,3 +76,31 @@ def test_export_status_idor(client, student_user):
     stu2_headers = {'Authorization': f"Bearer {stu2.json['token']}"}
     resp = client.get(f'/api/student/export/{job_id}', headers=stu2_headers)
     assert resp.status_code in (403, 404)
+
+def test_export_download(client, student_user):
+    headers = _stu(client, student_user)
+    _set_profile(client, headers)
+    # In eager mode the Celery task runs synchronously
+    export_resp = client.post('/api/student/export', headers=headers)
+    assert export_resp.status_code == 202
+    job_id = export_resp.json['job_id']
+    status_resp = client.get(f'/api/student/export/{job_id}', headers=headers)
+    assert status_resp.status_code == 200
+    assert 'download_url' in status_resp.json
+    download_url = status_resp.json['download_url']
+    dl_resp = client.get(download_url, headers=headers)
+    assert dl_resp.status_code == 200
+    # Flask maps .csv to application/vnd.ms-excel or text/csv depending on config
+    assert dl_resp.content_type in ('text/csv', 'application/vnd.ms-excel')
+
+def test_export_download_idor(client, student_user):
+    headers = _stu(client, student_user)
+    _set_profile(client, headers)
+    export_resp = client.post('/api/student/export', headers=headers)
+    job_id = export_resp.json['job_id']
+    stu2 = client.post('/api/auth/register', json={
+        'email': 'stu2b@test.com', 'password': 'pw', 'role': 'student', 'name': 'Bob'
+    })
+    stu2_headers = {'Authorization': f"Bearer {stu2.json['token']}"}
+    resp = client.get(f'/api/student/export/{job_id}/download', headers=stu2_headers)
+    assert resp.status_code == 403
