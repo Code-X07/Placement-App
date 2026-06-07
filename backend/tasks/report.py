@@ -1,0 +1,47 @@
+from datetime import date, timedelta
+from flask import render_template_string, current_app
+from flask_mail import Message
+from app import celery, mail
+from models.models import PlacementDrive, Application
+
+_REPORT_TMPL = """<html><body>
+<h2>Monthly Placement Activity Report — {{ month }}</h2>
+<ul>
+  <li>Drives conducted: {{ drives }}</li>
+  <li>Total applications: {{ total }}</li>
+  <li>Shortlisted: {{ shortlisted }}</li>
+  <li>Selected: {{ selected }}</li>
+</ul>
+</body></html>"""
+
+@celery.task
+def send_monthly_report():
+    today = date.today()
+    first = today.replace(day=1)
+    end = first - timedelta(days=1)
+    start = end.replace(day=1)
+
+    drives = PlacementDrive.query.filter(
+        PlacementDrive.created_at >= start,
+        PlacementDrive.created_at <= end,
+    ).count()
+
+    base_q = Application.query.filter(
+        Application.applied_at >= start,
+        Application.applied_at <= end,
+    )
+    total = base_q.count()
+    shortlisted = base_q.filter(Application.status == 'shortlisted').count()
+    selected = base_q.filter(Application.status == 'selected').count()
+
+    html = render_template_string(_REPORT_TMPL,
+        month=end.strftime('%B %Y'),
+        drives=drives, total=total,
+        shortlisted=shortlisted, selected=selected)
+
+    msg = Message(
+        subject=f'Monthly Placement Report — {end.strftime("%B %Y")}',
+        recipients=[current_app.config['ADMIN_EMAIL']],
+        html=html,
+    )
+    mail.send(msg)
