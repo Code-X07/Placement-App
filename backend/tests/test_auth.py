@@ -64,3 +64,9 @@ def test_me_returns_fresh_user(client):
     resp = client.get('/api/auth/me', headers=headers)
     assert resp.status_code == 200
     assert resp.json['email'] == 'me@test.com'
+
+def test_cors_preflight(client):
+    resp = client.options('/api/auth/login',
+                          headers={'Origin': 'http://localhost:5173',
+                                   'Access-Control-Request-Method': 'POST'})
+    assert 'Access-Control-Allow-Origin' in resp.headers

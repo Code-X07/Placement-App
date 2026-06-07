@@ -3,6 +3,7 @@ from flask import Flask
 from flask_jwt_extended import JWTManager
 from flask_bcrypt import Bcrypt
 from flask_mail import Mail
+from flask_cors import CORS
 from celery import Celery
 from config import Config
 from models.models import db
@@ -27,6 +28,7 @@ def create_app(config=None):
     bcrypt.init_app(app)
     jwt.init_app(app)
     mail.init_app(app)
+    CORS(app, resources={r"/api/*": {"origins": "*"}})
 
     celery.conf.update(
         broker_url=app.config['CELERY_BROKER_URL'],
