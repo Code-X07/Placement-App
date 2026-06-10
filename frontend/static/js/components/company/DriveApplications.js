@@ -1,0 +1,1 @@
+export default { name: 'DriveApplications', template: '<div>Drive Applications</div>' }

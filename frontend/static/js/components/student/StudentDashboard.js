@@ -1,0 +1,1 @@
+export default { name: 'StudentDashboard', template: '<div>Student Dashboard</div>' }

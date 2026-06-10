@@ -1,0 +1,1 @@
+export default { name: 'OfferLetter', template: '<div>Offer Letter</div>' }

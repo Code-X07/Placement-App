@@ -1,0 +1,1 @@
+export default { name: 'CompanyDashboard', template: '<div>Company Dashboard</div>' }

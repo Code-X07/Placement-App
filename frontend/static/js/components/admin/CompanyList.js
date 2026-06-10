@@ -1,0 +1,1 @@
+export default { name: 'CompanyList', template: '<div>Company List</div>' }

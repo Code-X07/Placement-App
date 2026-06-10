@@ -1,0 +1,1 @@
+export default { name: 'SearchResults', template: '<div>Search Results</div>' }

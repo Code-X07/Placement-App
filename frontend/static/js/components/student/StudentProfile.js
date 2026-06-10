@@ -1,0 +1,1 @@
+export default { name: 'StudentProfile', template: '<div>Student Profile</div>' }

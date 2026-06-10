@@ -1,0 +1,1 @@
+export default { name: 'DriveListAdmin', template: '<div>Drive List (Admin)</div>' }

@@ -1,0 +1,1 @@
+export default { name: 'DriveListStudent', template: '<div>Drive List (Student)</div>' }

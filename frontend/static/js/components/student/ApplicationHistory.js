@@ -1,0 +1,1 @@
+export default { name: 'ApplicationHistory', template: '<div>Application History</div>' }

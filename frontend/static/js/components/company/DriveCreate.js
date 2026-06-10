@@ -1,0 +1,1 @@
+export default { name: 'DriveCreate', template: '<div>Create Drive</div>' }
