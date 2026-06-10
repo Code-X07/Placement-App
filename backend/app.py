@@ -1,5 +1,6 @@
+import os
 import redis as redis_lib
-from flask import Flask
+from flask import Flask, send_from_directory
 from flask_jwt_extended import JWTManager
 from flask_bcrypt import Bcrypt
 from flask_mail import Mail
@@ -69,6 +70,16 @@ def create_app(config=None):
     app.register_blueprint(admin_bp)
     app.register_blueprint(company_bp)
     app.register_blueprint(student_bp)
+
+    @app.route('/')
+    def index():
+        template_dir = os.path.join(app.root_path, '..', 'frontend', 'templates')
+        return send_from_directory(template_dir, 'index.html')
+
+    @app.route('/static/<path:path>')
+    def static_files(path):
+        static_dir = os.path.join(app.root_path, '..', 'frontend', 'static')
+        return send_from_directory(static_dir, path)
 
     return app
 
