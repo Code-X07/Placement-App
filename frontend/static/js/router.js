@@ -55,15 +55,14 @@ router.beforeEach((to, from, next) => {
   const role     = store.state.role
 
   if (to.meta.public) {
-    // Redirect already-logged-in users to their dashboard
-    if (loggedIn) return next(`/${role}/dashboard`)
+    if (loggedIn && role) return next(`/${role}/dashboard`)
     return next()
   }
 
   if (!loggedIn) return next('/login')
 
   if (to.meta.role && to.meta.role !== role) {
-    return next(`/${role}/dashboard`)
+    return next(role ? `/${role}/dashboard` : '/login')
   }
 
   next()
