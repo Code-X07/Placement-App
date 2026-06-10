@@ -17,7 +17,7 @@ redis_client = None
 
 def create_app(config=None):
     global redis_client
-    app = Flask(__name__)
+    app = Flask(__name__, static_folder=None)
     if config is None:
         app.config.from_object(Config)
     elif isinstance(config, type):
