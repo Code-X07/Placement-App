@@ -59,7 +59,6 @@ def test_apply_to_drive(client, student_user, approved_drive):
     resp = client.post(f'/api/student/drives/{approved_drive}/apply', headers=headers)
     assert resp.status_code == 201
     assert resp.json['ok'] is True
-    assert 'application_id' in resp.json
 
 def test_double_apply_rejected(client, student_user, approved_drive):
     headers = _stu(client, student_user)

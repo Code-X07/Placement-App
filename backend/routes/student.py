@@ -153,7 +153,7 @@ def apply(drive_id):
     db.session.commit()
     from cache import cache_delete
     cache_delete('admin:dashboard:stats')
-    return jsonify({'ok': True, 'application_id': app_obj.id}), 201
+    return jsonify({'ok': True}), 201
 
 @student_bp.route('/applications', methods=['GET'])
 @role_required('student')

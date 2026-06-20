@@ -68,7 +68,11 @@ def test_update_application_status(client, approved_company_headers, approved_dr
     apply_resp = client.post(f'/api/student/drives/{approved_drive}/apply',
                              headers=stu_headers)
     assert apply_resp.status_code == 201
-    app_id = apply_resp.json['application_id']
+    with app.app_context():
+        from models.models import Application, StudentProfile
+        stu_profile = StudentProfile.query.filter_by(name='Stu').first()
+        app_obj = Application.query.filter_by(student_id=stu_profile.id, drive_id=approved_drive).first()
+        app_id = app_obj.id
     resp = client.put(f'/api/company/applications/{app_id}/status',
                       headers=approved_company_headers, json={'status': 'shortlisted'})
     assert resp.status_code == 200
@@ -83,7 +87,11 @@ def test_offer_letter_only_for_selected(client, approved_company_headers, approv
     })
     apply_resp = client.post(f'/api/student/drives/{approved_drive}/apply',
                              headers=stu_headers)
-    app_id = apply_resp.json['application_id']
+    with app.app_context():
+        from models.models import Application, StudentProfile
+        stu_profile = StudentProfile.query.filter_by(name='Stu').first()
+        app_obj = Application.query.filter_by(student_id=stu_profile.id, drive_id=approved_drive).first()
+        app_id = app_obj.id
     # Status is 'applied', not 'selected' — should 400
     resp = client.get(f'/api/company/applications/{app_id}/offer-letter',
                       headers=approved_company_headers)
@@ -144,7 +152,11 @@ def test_resume_own_applicant(client, approved_company_headers, approved_drive,
     # Apply to drive
     apply_resp = client.post(f'/api/student/drives/{approved_drive}/apply',
                              headers=stu_headers)
-    app_id = apply_resp.json['application_id']
+    with app.app_context():
+        from models.models import Application, StudentProfile
+        stu_profile = StudentProfile.query.filter_by(name='Stu').first()
+        app_obj = Application.query.filter_by(student_id=stu_profile.id, drive_id=approved_drive).first()
+        app_id = app_obj.id
 
     # Company views resume
     resp = client.get(f'/api/company/applications/{app_id}/resume',
@@ -172,21 +184,29 @@ def test_resume_other_company_forbidden(client, approved_company_headers, approv
     })
     apply_resp = client.post(f'/api/student/drives/{approved_drive}/apply',
                              headers=stu_headers)
-    app_id = apply_resp.json['application_id']
+    with app.app_context():
+        from models.models import Application, StudentProfile
+        stu_profile = StudentProfile.query.filter_by(name='Stu').first()
+        app_obj = Application.query.filter_by(student_id=stu_profile.id, drive_id=approved_drive).first()
+        app_id = app_obj.id
 
     # Second company tries to access resume (IDOR)
     resp = client.get(f'/api/company/applications/{app_id}/resume',
                       headers=co2_headers)
     assert resp.status_code == 403
 
-def test_resume_no_resume_404(client, approved_company_headers, approved_drive, student_user):
+def test_resume_no_resume_404(client, approved_company_headers, approved_drive, student_user, app):
     stu_headers = {'Authorization': f"Bearer {student_user['token']}"}
     client.put('/api/student/profile', headers=stu_headers, json={
         'name': 'Stu', 'phone': '9876543210', 'branch': 'CS', 'year': 3, 'cgpa': 8.0
     })
     apply_resp = client.post(f'/api/student/drives/{approved_drive}/apply',
                              headers=stu_headers)
-    app_id = apply_resp.json['application_id']
+    with app.app_context():
+        from models.models import Application, StudentProfile
+        stu_profile = StudentProfile.query.filter_by(name='Stu').first()
+        app_obj = Application.query.filter_by(student_id=stu_profile.id, drive_id=approved_drive).first()
+        app_id = app_obj.id
 
     # Try to download resume when none exists
     resp = client.get(f'/api/company/applications/{app_id}/resume',

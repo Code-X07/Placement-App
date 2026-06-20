@@ -59,6 +59,8 @@ def update_profile():
 @role_required('company')
 def create_drive():
     cp = _own_company()
+    if cp.approval_status != 'approved':
+        return jsonify({'error': 'NOT_APPROVED'}), 403
     data = request.get_json() or {}
     required = ('title', 'description', 'ctc', 'location',
                  'eligibility_cgpa', 'eligibility_branch', 'application_deadline')
@@ -104,6 +106,8 @@ def create_drive():
 @role_required('company')
 def drive_applications(drive_id):
     cp = _own_company()
+    if cp.approval_status != 'approved':
+        return jsonify({'error': 'NOT_APPROVED'}), 403
     drive = PlacementDrive.query.get_or_404(drive_id)
     if drive.company_id != cp.id:
         return jsonify({'error': 'Access denied', 'code': 'FORBIDDEN'}), 403
@@ -122,6 +126,8 @@ def drive_applications(drive_id):
 @role_required('company')
 def update_application_status(app_id):
     cp = _own_company()
+    if cp.approval_status != 'approved':
+        return jsonify({'error': 'NOT_APPROVED'}), 403
     app_obj = Application.query.get_or_404(app_id)
     if app_obj.drive.company_id != cp.id:
         return jsonify({'error': 'Access denied', 'code': 'FORBIDDEN'}), 403
@@ -141,6 +147,8 @@ def update_application_status(app_id):
 @role_required('company')
 def offer_letter(app_id):
     cp = _own_company()
+    if cp.approval_status != 'approved':
+        return jsonify({'error': 'NOT_APPROVED'}), 403
     app_obj = Application.query.get_or_404(app_id)
     if app_obj.drive.company_id != cp.id:
         return jsonify({'error': 'Access denied', 'code': 'FORBIDDEN'}), 403
@@ -170,6 +178,8 @@ def offer_letter(app_id):
 @role_required('company')
 def resume_download(app_id):
     cp = _own_company()
+    if cp.approval_status != 'approved':
+        return jsonify({'error': 'NOT_APPROVED'}), 403
     app_obj = Application.query.get_or_404(app_id)
     if app_obj.drive.company_id != cp.id:
         return jsonify({'error': 'Access denied', 'code': 'FORBIDDEN'}), 403
