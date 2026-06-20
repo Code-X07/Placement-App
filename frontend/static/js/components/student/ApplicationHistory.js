@@ -46,6 +46,19 @@ export default {
       }, 700);
     },
     reset() { this.exportState = 'idle'; this.exportErr = ''; this.exportFile = ''; },
+    async downloadCsv(filePath) {
+      try {
+        const { data: blob } = await api.get(filePath, { responseType: 'blob' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'my_applications.csv';
+        a.click();
+        URL.revokeObjectURL(url);
+      } catch (e) {
+        this.$bus.$emit('toast', { type: 'danger', msg: 'Failed to download CSV.' });
+      }
+    },
   },
   template: `
     <div data-screen-label="Application History">
@@ -59,7 +72,7 @@ export default {
 
           <div v-if="exportState==='pending'" class="cell-sub mt-2">Generating your export…</div>
           <div v-if="exportState==='done'" class="mt-2">
-            <a :href="exportFile" download="my_applications.csv" class="d-inline-flex align-items-center gap-1"><i class="bi bi-file-earmark-arrow-down"></i> Download my_applications.csv</a>
+            <a href="javascript:void(0)" @click="downloadCsv(exportFile)" class="d-inline-flex align-items-center gap-1"><i class="bi bi-file-earmark-arrow-down"></i> Download my_applications.csv</a>
           </div>
           <div v-if="exportState==='failed'" class="mt-2 text-end" style="max-width:260px">
             <div class="cell-sub" style="color:var(--tone-red-fg)">{{ exportErr }}</div>

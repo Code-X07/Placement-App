@@ -5,7 +5,7 @@
 export default {
   name: 'RegisterForm',
   data() {
-    return { role: 'student', name: '', email: '', password: '', loading: false, error: '' };
+    return { role: 'student', name: '', email: '', password: '', address: '', loading: false, error: '' };
   },
   methods: {
     valid() {
@@ -19,9 +19,11 @@ export default {
       if (!this.valid()) return;
       this.loading = true;
       try {
-        const { role } = await this.$store.dispatch('register', {
+        const payload = {
           role: this.role, name: this.name, email: this.email, password: this.password,
-        });
+        };
+        if (this.role === 'company' && this.address.trim()) payload.address = this.address.trim();
+        const { role } = await this.$store.dispatch('register', payload);
         this.$bus.$emit('toast', { type: 'success', msg: 'Account created.' });
         this.$router.push('/' + role + '/dashboard');
       } catch (e) {
@@ -60,6 +62,11 @@ export default {
               <i class="bi bi-envelope"></i>
               <input v-model="email" type="email" class="form-control" placeholder="you@university.edu">
             </div>
+          </div>
+
+          <div v-if="role === 'company'" class="mb-3">
+            <label class="form-label">Address</label>
+            <textarea v-model="address" class="form-control" rows="2" placeholder="e.g., 123 Business Ave, Tech Park, City"></textarea>
           </div>
 
           <div class="mb-2">

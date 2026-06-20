@@ -47,7 +47,7 @@ export default {
               </td>
               <td class="text-muted-2">{{ r.email }}</td>
               <td>{{ r.branch }}</td>
-              <td class="cell-strong">{{ r.cgpa.toFixed(2) }}</td>
+              <td class="cell-strong">{{ (r.cgpa ?? 0).toFixed(2) }}</td>
               <td><span class="pill" :class="r.is_active ? 'tone-green' : 'tone-grey'"><span class="pdot"></span>{{ r.is_active ? 'Active' : 'Inactive' }}</span></td>
               <td class="text-end">
                 <button v-if="r.is_active" class="btn btn-xs btn-ghost" style="color:var(--tone-red-fg)" :disabled="acting[r.id]" @click="deactivate(r)">Deactivate</button>

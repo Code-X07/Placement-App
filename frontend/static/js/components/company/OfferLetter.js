@@ -20,7 +20,7 @@ export default {
     print() { window.print(); },
     download() {
       const l = this.letter;
-      const text = `LETTER OF INTENT\n\nDear ${l.student_name},\n\n${l.intro}\n\n${l.body}\n\nPosition: ${l.position}\nDepartment: ${l.department}\nCTC: ${l.ctc}\nJoining Date: ${l.joining_date}\nLocation: ${l.location}\n\n${l.company.name}`;
+      const text = `LETTER OF INTENT\n\nDear ${l.student_name},\n\n${l.intro}\n\n${l.body}\n\nPosition: ${l.position}\nDepartment: ${l.department}\nCTC: ${l.ctc}\nLocation: ${l.location}\n\n${l.company.name}`;
       const a = document.createElement('a');
       a.href = 'data:text/plain;charset=utf-8,' + encodeURIComponent(text);
       a.download = 'offer_letter.txt'; a.click();
@@ -69,7 +69,6 @@ export default {
             <div class="col-5 cell-sub">Position:</div>      <div class="col-7 cell-strong">{{ letter.position }}</div>
             <div class="col-5 cell-sub">Department:</div>    <div class="col-7 cell-strong">{{ letter.department }}</div>
             <div class="col-5 cell-sub">Cost to Company:</div><div class="col-7 cell-strong" style="color:var(--color-action)">{{ letter.ctc }}</div>
-            <div class="col-5 cell-sub">Joining Date:</div>  <div class="col-7 cell-strong">{{ letter.joining_date }}</div>
             <div class="col-5 cell-sub">Location:</div>      <div class="col-7 cell-strong">{{ letter.location }}</div>
           </div>
         </div>

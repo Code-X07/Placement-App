@@ -47,9 +47,13 @@ export default {
       const f = e.target.files[0]; if (!f) return;
       if (f.type !== 'application/pdf') { this.resumeError = 'Resume must be a PDF file.'; return; }
       if (f.size > 5 * 1024 * 1024) { this.resumeError = 'Resume must be 5MB or smaller.'; return; }
-      try { await api.post('/student/profile/resume', { filename: f.name }); this.resumeName = f.name;
-        this.$bus.$emit('toast', { type: 'success', msg: 'Resume uploaded.' }); }
-      catch (err) { this.resumeError = 'Upload failed.'; }
+      try {
+        const formData = new FormData();
+        formData.append('resume', f);
+        await api.post('/student/profile/resume', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+        this.resumeName = f.name;
+        this.$bus.$emit('toast', { type: 'success', msg: 'Resume uploaded.' });
+      } catch (err) { this.resumeError = 'Upload failed.'; }
     },
   },
   template: `

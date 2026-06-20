@@ -10,7 +10,7 @@ export default {
   name: 'DriveCreate',
   data() {
     return {
-      form: { title: '', description: '', ctc: '', location: '', eligibility_cgpa: 7.0, application_deadline: '', eligibility_branch: ['Computer Science', 'Information Technology'] },
+      form: { title: '', description: '', ctc: '', location: '', department: '', eligibility_cgpa: 7.0, application_deadline: '', eligibility_branch: ['Computer Science', 'Information Technology'] },
       branchInput: '', submitting: false, error: '',
     };
   },
@@ -76,6 +76,10 @@ export default {
             <label class="form-label">Job Location <span class="req">*</span></label>
             <div class="input-ic"><i class="bi bi-geo-alt"></i><input v-model="form.location" class="form-control" placeholder="e.g., Bangalore, Remote"></div>
           </div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Department</label>
+          <input v-model="form.department" class="form-control" placeholder="e.g., Engineering, Product, Sales">
         </div>
 
         <hr class="divider" style="margin:8px 0 20px">

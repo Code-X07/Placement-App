@@ -32,6 +32,19 @@ export default {
         this.$bus.$emit('toast', { type: 'success', msg: `${row.name} marked ${status}.` }); }
       catch (e) {} finally { this.$set(this.acting, row.id, false); }
     },
+    async openResume(r) {
+      try {
+        const { data: blob } = await api.get(`/company/applications/${r.id}/resume`, { responseType: 'blob' });
+        const url = URL.createObjectURL(blob);
+        window.open(url);
+      } catch (e) {
+        if (e.response && e.response.status === 404) {
+          this.$bus.$emit('toast', { type: 'warning', msg: 'No resume available for this applicant.' });
+        } else {
+          this.$bus.$emit('toast', { type: 'danger', msg: 'Failed to open resume.' });
+        }
+      }
+    },
   },
   template: `
     <div data-screen-label="Drive Applications">
@@ -61,8 +74,8 @@ export default {
                   </div>
                 </td>
                 <td>{{ r.branch }}</td>
-                <td class="cell-strong">{{ r.cgpa.toFixed(1) }}</td>
-                <td><a :href="r.resume_path" @click.prevent class="d-inline-flex align-items-center gap-1"><i class="bi bi-file-earmark-text"></i> View</a></td>
+                <td class="cell-strong">{{ (r.cgpa ?? 0).toFixed(1) }}</td>
+                <td><a href="javascript:void(0)" @click="openResume(r)" class="d-inline-flex align-items-center gap-1"><i class="bi bi-file-earmark-text"></i> View</a></td>
                 <td>
                   <span class="pill" :class="'tone-' + tone(r.status)"><span class="pdot"></span>{{ r.status }}</span>
                   <div v-if="r.status === 'selected'" style="margin-top:6px">
