@@ -1,8 +1,8 @@
 import json
+import os
 from datetime import date
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app, send_from_directory
 from flask_jwt_extended import get_jwt_identity
-from markupsafe import escape
 from routes.decorators import role_required
 from models.models import db, CompanyProfile, PlacementDrive, Application
 
@@ -25,12 +25,18 @@ def dashboard():
     drives = PlacementDrive.query.filter_by(company_id=cp.id).all()
     drive_data = [{
         'id': d.id, 'title': d.title, 'status': d.status,
-        'deadline': str(d.application_deadline),
+        'application_deadline': str(d.application_deadline),
+        'location': d.location,
         'applicant_count': Application.query.filter_by(drive_id=d.id).count()
     } for d in drives]
+    active_drives = sum(1 for d in drives if d.status == 'approved')
+    total_applicants = sum(Application.query.filter_by(drive_id=d.id).count() for d in drives)
     result = {
-        'company': {'id': cp.id, 'company_name': cp.company_name,
-                    'approval_status': cp.approval_status},
+        'company_name': cp.company_name,
+        'approval_status': cp.approval_status,
+        'website': cp.website,
+        'active_drives': active_drives,
+        'total_applicants': total_applicants,
         'drives': drive_data
     }
     cache_set(cache_key, result, ttl=300)
@@ -86,12 +92,13 @@ def create_drive():
         eligibility_branch=json.dumps(data['eligibility_branch']),
         application_deadline=deadline,
         status='pending',
+        department=data.get('department'),
     )
     db.session.add(drive)
     db.session.commit()
     from cache import cache_delete
     cache_delete(f'company:{get_jwt_identity()}:dashboard', 'admin:dashboard:stats')
-    return jsonify({'id': drive.id, 'title': drive.title, 'status': drive.status}), 201
+    return jsonify({'id': drive.id, 'status': drive.status}), 201
 
 @company_bp.route('/drives/<int:drive_id>/applications', methods=['GET'])
 @role_required('company')
@@ -101,13 +108,15 @@ def drive_applications(drive_id):
     if drive.company_id != cp.id:
         return jsonify({'error': 'Access denied', 'code': 'FORBIDDEN'}), 403
     apps = Application.query.filter_by(drive_id=drive_id).all()
-    return jsonify([{
-        'id': a.id, 'status': a.status, 'applied_at': str(a.applied_at),
-        'student': {
-            'name': a.student.name, 'branch': a.student.branch, 'cgpa': a.student.cgpa,
-            'resume_path': a.student.resume_path
-        }
-    } for a in apps]), 200
+    return jsonify({
+        'drive_title': drive.title,
+        'company_name': drive.company.company_name,
+        'applicants': [{
+            'id': a.id, 'name': a.student.name, 'roll': a.student.roll,
+            'branch': a.student.branch, 'cgpa': a.student.cgpa,
+            'resume_path': a.student.resume_path, 'status': a.status
+        } for a in apps]
+    }), 200
 
 @company_bp.route('/applications/<int:app_id>/status', methods=['PUT'])
 @role_required('company')
@@ -126,7 +135,7 @@ def update_application_status(app_id):
     db.session.commit()
     from cache import cache_delete
     cache_delete(f'company:{get_jwt_identity()}:dashboard', 'admin:dashboard:stats')
-    return jsonify({'message': 'Status updated', 'status': new_status}), 200
+    return jsonify({'id': app_obj.id, 'status': new_status}), 200
 
 @company_bp.route('/applications/<int:app_id>/offer-letter', methods=['GET'])
 @role_required('company')
@@ -140,17 +149,34 @@ def offer_letter(app_id):
                         'code': 'NOT_SELECTED'}), 400
     student = app_obj.student
     drive = app_obj.drive
-    html = f"""<!DOCTYPE html>
-<html><head><title>Offer Letter</title></head><body>
-<h1>Offer Letter</h1>
-<p>Dear <strong>{escape(student.name)}</strong>,</p>
-<p>We are pleased to offer you the position of <strong>{escape(drive.title)}</strong>
-at <strong>{escape(drive.company.company_name)}</strong>.</p>
-<ul>
-  <li>Location: {escape(drive.location)}</li>
-  <li>CTC: {escape(str(drive.ctc))} LPA</li>
-</ul>
-<p>Congratulations and welcome aboard!</p>
-<p>HR Team, {escape(drive.company.company_name)}</p>
-</body></html>"""
-    return html, 200, {'Content-Type': 'text/html'}
+    company_address = (drive.company.address or '').splitlines() or [drive.company.website or '']
+    return jsonify({
+        'company': {'name': drive.company.company_name, 'address': company_address},
+        'date': date.today().strftime('%B %d, %Y'),
+        'student_name': student.name,
+        'position': drive.title,
+        'department': drive.department or '',
+        'ctc': f'{drive.ctc} LPA',
+        'location': drive.location,
+        'intro': (f'Following our recent discussions, we are delighted to offer you the position of '
+                  f'{drive.title} at {drive.company.company_name}. We were impressed with your academic '
+                  f'record and approach to problem-solving.'),
+        'body': ('In this role you will join our team and contribute to projects aligned with the '
+                 'responsibilities outlined for this position. We believe your skills will be a valuable '
+                 'asset to our organisation and look forward to welcoming you aboard.'),
+    }), 200
+
+@company_bp.route('/applications/<int:app_id>/resume', methods=['GET'])
+@role_required('company')
+def resume_download(app_id):
+    cp = _own_company()
+    app_obj = Application.query.get_or_404(app_id)
+    if app_obj.drive.company_id != cp.id:
+        return jsonify({'error': 'Access denied', 'code': 'FORBIDDEN'}), 403
+    student = app_obj.student
+    if not student.resume_path:
+        return jsonify({'error': 'No resume available for this student',
+                        'code': 'NO_RESUME'}), 404
+    resume_dir = os.path.join(current_app.root_path, 'uploads', 'resumes')
+    filename = os.path.basename(student.resume_path)
+    return send_from_directory(resume_dir, filename, as_attachment=False)

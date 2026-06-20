@@ -17,7 +17,7 @@ def test_create_drive(client, approved_company_headers):
         'application_deadline': str(date.today() + timedelta(days=20))
     })
     assert resp.status_code == 201
-    assert resp.json['title'] == 'Backend Dev'
+    assert resp.json['id'] is not None
     assert resp.json['status'] == 'pending'
 
 def test_drive_past_deadline_rejected(client, approved_company_headers):
@@ -32,7 +32,10 @@ def test_view_own_drive_applications(client, approved_company_headers, approved_
     resp = client.get(f'/api/company/drives/{approved_drive}/applications',
                       headers=approved_company_headers)
     assert resp.status_code == 200
-    assert isinstance(resp.json, list)
+    assert 'drive_title' in resp.json
+    assert 'company_name' in resp.json
+    assert 'applicants' in resp.json
+    assert isinstance(resp.json['applicants'], list)
 
 def test_idor_other_company_drive(client, approved_company_headers, admin_headers, app):
     # Register and approve a second company
@@ -69,6 +72,8 @@ def test_update_application_status(client, approved_company_headers, approved_dr
     resp = client.put(f'/api/company/applications/{app_id}/status',
                       headers=approved_company_headers, json={'status': 'shortlisted'})
     assert resp.status_code == 200
+    assert resp.json['id'] == app_id
+    assert resp.json['status'] == 'shortlisted'
 
 def test_offer_letter_only_for_selected(client, approved_company_headers, approved_drive,
                                         student_user, app):
@@ -89,7 +94,20 @@ def test_offer_letter_only_for_selected(client, approved_company_headers, approv
     resp = client.get(f'/api/company/applications/{app_id}/offer-letter',
                       headers=approved_company_headers)
     assert resp.status_code == 200
-    assert b'Offer Letter' in resp.data
+    json_data = resp.json
+    assert 'company' in json_data
+    assert 'name' in json_data['company']
+    assert 'address' in json_data['company']
+    assert 'date' in json_data
+    assert 'student_name' in json_data
+    assert json_data['student_name'] == 'Stu'
+    assert 'position' in json_data
+    assert 'department' in json_data
+    assert 'ctc' in json_data
+    assert 'location' in json_data
+    assert 'intro' in json_data
+    assert 'body' in json_data
+    assert 'joining_date' not in json_data
 
 def test_create_drive_branch_must_be_list(client, approved_company_headers):
     resp = client.post('/api/company/drives', headers=approved_company_headers, json={
@@ -101,20 +119,77 @@ def test_create_drive_branch_must_be_list(client, approved_company_headers):
     assert resp.status_code == 400
     assert resp.json['code'] == 'INVALID_BRANCH_FORMAT'
 
-def test_offer_letter_escapes_xss(client, approved_company_headers, approved_drive,
-                                  student_user, app):
+def test_resume_own_applicant(client, approved_company_headers, approved_drive,
+                              student_user, app):
+    stu_headers = {'Authorization': f"Bearer {student_user['token']}"}
+    # Create a minimal student profile
+    client.put('/api/student/profile', headers=stu_headers, json={
+        'name': 'Stu', 'phone': '9876543210', 'branch': 'CS', 'year': 3, 'cgpa': 8.0
+    })
+    # Mock a resume file
+    with app.app_context():
+        import os
+        from models.models import StudentProfile
+        stu = StudentProfile.query.filter_by(name='Stu').first()
+        resume_dir = os.path.join(app.root_path, 'uploads', 'resumes')
+        os.makedirs(resume_dir, exist_ok=True)
+        # Create a dummy PDF file
+        resume_path = os.path.join(resume_dir, 'test_resume.pdf')
+        with open(resume_path, 'wb') as f:
+            f.write(b'%PDF-1.4\n%EOF')
+        stu.resume_path = 'test_resume.pdf'
+        from models.models import db
+        db.session.commit()
+
+    # Apply to drive
+    apply_resp = client.post(f'/api/student/drives/{approved_drive}/apply',
+                             headers=stu_headers)
+    app_id = apply_resp.json['application_id']
+
+    # Company views resume
+    resp = client.get(f'/api/company/applications/{app_id}/resume',
+                      headers=approved_company_headers)
+    assert resp.status_code == 200
+    assert resp.content_type == 'application/pdf'
+    assert b'%PDF' in resp.data
+
+def test_resume_other_company_forbidden(client, approved_company_headers, approved_drive,
+                                        student_user, admin_headers, app):
+    # Register and approve a second company
+    resp2 = client.post('/api/auth/register', json={
+        'email': 'co2@test.com', 'password': 'pw', 'role': 'company', 'name': 'Corp2'
+    })
+    with app.app_context():
+        from models.models import CompanyProfile
+        cp2 = CompanyProfile.query.filter_by(company_name='Corp2').first()
+        client.put(f'/api/admin/companies/{cp2.id}/approve', headers=admin_headers)
+    co2_headers = {'Authorization': f"Bearer {resp2.json['token']}"}
+
+    # Student applies to drive owned by first company
     stu_headers = {'Authorization': f"Bearer {student_user['token']}"}
     client.put('/api/student/profile', headers=stu_headers, json={
-        'name': '<script>alert(1)</script>', 'phone': '9876543210',
-        'branch': 'CS', 'year': 3, 'cgpa': 8.0
+        'name': 'Stu', 'phone': '9876543210', 'branch': 'CS', 'year': 3, 'cgpa': 8.0
     })
     apply_resp = client.post(f'/api/student/drives/{approved_drive}/apply',
                              headers=stu_headers)
     app_id = apply_resp.json['application_id']
-    client.put(f'/api/company/applications/{app_id}/status',
-               headers=approved_company_headers, json={'status': 'selected'})
-    resp = client.get(f'/api/company/applications/{app_id}/offer-letter',
+
+    # Second company tries to access resume (IDOR)
+    resp = client.get(f'/api/company/applications/{app_id}/resume',
+                      headers=co2_headers)
+    assert resp.status_code == 403
+
+def test_resume_no_resume_404(client, approved_company_headers, approved_drive, student_user):
+    stu_headers = {'Authorization': f"Bearer {student_user['token']}"}
+    client.put('/api/student/profile', headers=stu_headers, json={
+        'name': 'Stu', 'phone': '9876543210', 'branch': 'CS', 'year': 3, 'cgpa': 8.0
+    })
+    apply_resp = client.post(f'/api/student/drives/{approved_drive}/apply',
+                             headers=stu_headers)
+    app_id = apply_resp.json['application_id']
+
+    # Try to download resume when none exists
+    resp = client.get(f'/api/company/applications/{app_id}/resume',
                       headers=approved_company_headers)
-    assert resp.status_code == 200
-    assert b'<script>' not in resp.data
-    assert b'&lt;script&gt;' in resp.data
+    assert resp.status_code == 404
+    assert resp.json['code'] == 'NO_RESUME'
