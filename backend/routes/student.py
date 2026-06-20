@@ -5,7 +5,7 @@ from flask import Blueprint, request, jsonify, current_app, send_from_directory
 from flask_jwt_extended import get_jwt_identity
 from werkzeug.utils import secure_filename
 from routes.decorators import role_required
-from models.models import db, StudentProfile, PlacementDrive, Application, ExportJob
+from models.models import db, StudentProfile, PlacementDrive, Application, ExportJob, User
 
 student_bp = Blueprint('student', __name__, url_prefix='/api/student')
 
@@ -13,16 +13,19 @@ def _own_student():
     user_id = get_jwt_identity()
     return StudentProfile.query.filter_by(user_id=int(user_id)).first_or_404()
 
-@student_bp.route('/dashboard', methods=['GET'])
+@student_bp.route('/profile', methods=['GET'])
 @role_required('student')
-def dashboard():
+def get_profile():
     sp = _own_student()
-    drives = _eligible_drives(sp)
-    apps = Application.query.filter_by(student_id=sp.id).all()
+    user = sp.user
     return jsonify({
-        'drives': [_drive_dict(d) for d in drives],
-        'applications': [{'drive': a.drive.title, 'status': a.status,
-                          'applied_at': str(a.applied_at)} for a in apps]
+        'name': sp.name,
+        'phone': sp.phone,
+        'branch': sp.branch,
+        'year': sp.year,
+        'cgpa': sp.cgpa,
+        'resume_path': sp.resume_path,
+        'email': user.email
     }), 200
 
 @student_bp.route('/profile', methods=['PUT'])
@@ -45,6 +48,32 @@ def update_profile():
     db.session.commit()
     return jsonify({'message': 'Profile updated'}), 200
 
+@student_bp.route('/dashboard', methods=['GET'])
+@role_required('student')
+def dashboard():
+    sp = _own_student()
+    apps = Application.query.filter_by(student_id=sp.id).all()
+
+    # Aggregate counts by status
+    counts = {'applied': 0, 'shortlisted': 0, 'selected': 0, 'rejected': 0}
+    for app in apps:
+        if app.status in counts:
+            counts[app.status] += 1
+
+    # Get first 3 approved drives with future deadlines (teaser list, ignore eligibility)
+    today = date.today()
+    all_drives = PlacementDrive.query.filter_by(status='approved').filter(
+        PlacementDrive.application_deadline >= today
+    ).all()
+    recommended = [_drive_dict(d) for d in all_drives[:3]]
+
+    return jsonify({
+        'name': sp.name,
+        'branch': sp.branch,
+        'counts': counts,
+        'recommended': recommended
+    }), 200
+
 @student_bp.route('/profile/resume', methods=['POST'])
 @role_required('student')
 def upload_resume():
@@ -56,12 +85,12 @@ def upload_resume():
         return jsonify({'error': 'Only PDF files allowed',
                         'code': 'INVALID_FILE_TYPE'}), 400
     filename = secure_filename(f'{sp.id}_{f.filename}')
-    upload_dir = os.path.join(current_app.root_path, '..', 'uploads', 'resumes')
+    upload_dir = os.path.join(current_app.root_path, 'uploads', 'resumes')
     os.makedirs(upload_dir, exist_ok=True)
     f.save(os.path.join(upload_dir, filename))
     sp.resume_path = f'uploads/resumes/{filename}'
     db.session.commit()
-    return jsonify({'message': 'Resume uploaded', 'path': sp.resume_path}), 200
+    return jsonify({'resume_path': sp.resume_path, 'filename': filename}), 200
 
 @student_bp.route('/drives', methods=['GET'])
 @role_required('student')
@@ -69,21 +98,35 @@ def list_drives():
     from cache import cache_get, cache_set
     sp = _own_student()
     cache_key = 'drives:approved:list'
-    all_drives = cache_get(cache_key)
-    if all_drives is None:
+    all_drives_raw = cache_get(cache_key)
+    if all_drives_raw is None:
         raw = PlacementDrive.query.filter_by(status='approved').all()
-        all_drives = [_drive_dict(d) for d in raw]
-        cache_set(cache_key, all_drives, ttl=300)
-    today = str(date.today())
+        all_drives_raw = raw
+        cache_set(cache_key, all_drives_raw, ttl=300)
+    else:
+        # Cache stores serialized dicts, but we need drive objects for relationships
+        # Re-fetch from DB to ensure we have full objects with relationships
+        all_drives_raw = PlacementDrive.query.filter_by(status='approved').all()
+
+    today = date.today()
     result = []
-    for d in all_drives:
-        if d['deadline'] < today:
+    for d in all_drives_raw:
+        if d.application_deadline < today:
             continue
-        if sp.cgpa is not None and d['eligibility_cgpa'] is not None and sp.cgpa < d['eligibility_cgpa']:
-            continue
-        if sp.branch and d['eligibility_branch'] and sp.branch not in d['eligibility_branch']:
-            continue
-        result.append(d)
+        applied, eligible, reasons = _elig_state(sp, d)
+        result.append({
+            'id': d.id,
+            'title': d.title,
+            'company_name': d.company.company_name,
+            'ctc': d.ctc,
+            'location': d.location,
+            'application_deadline': str(d.application_deadline),
+            'eligibility_cgpa': d.eligibility_cgpa,
+            'eligibility_branch': _parse_eligibility_branch(d.eligibility_branch),
+            'applied': applied,
+            'eligible': eligible,
+            'reasons': reasons
+        })
     return jsonify(result), 200
 
 @student_bp.route('/drives/<int:drive_id>/apply', methods=['POST'])
@@ -95,7 +138,7 @@ def apply(drive_id):
         return jsonify({'error': 'Drive not approved', 'code': 'DRIVE_NOT_APPROVED'}), 400
     if drive.application_deadline < date.today():
         return jsonify({'error': 'Application deadline has passed',
-                        'code': 'DEADLINE_PASSED'}), 400
+                        'code': 'NOT_OPEN'}), 400
     if sp.cgpa is None or sp.cgpa < (drive.eligibility_cgpa or 0):
         return jsonify({'error': 'CGPA below drive requirement',
                         'code': 'INELIGIBLE_CGPA'}), 400
@@ -115,7 +158,7 @@ def apply(drive_id):
     db.session.commit()
     from cache import cache_delete
     cache_delete('admin:dashboard:stats', 'drives:approved:list')
-    return jsonify({'message': 'Applied successfully', 'application_id': app_obj.id}), 201
+    return jsonify({'ok': True, 'application_id': app_obj.id}), 201
 
 @student_bp.route('/applications', methods=['GET'])
 @role_required('student')
@@ -123,9 +166,12 @@ def applications():
     sp = _own_student()
     apps = Application.query.filter_by(student_id=sp.id).all()
     return jsonify([{
-        'id': a.id, 'drive': a.drive.title,
-        'company': a.drive.company.company_name,
-        'status': a.status, 'applied_at': str(a.applied_at)
+        'id': a.id,
+        'company_name': a.drive.company.company_name,
+        'location': a.drive.location,
+        'role': a.drive.title,
+        'applied_at': str(a.applied_at),
+        'status': a.status
     } for a in apps]), 200
 
 @student_bp.route('/export', methods=['POST'])
@@ -150,7 +196,10 @@ def export_status(job_id):
         return jsonify({'error': 'Access denied', 'code': 'FORBIDDEN'}), 403
     resp = {'job_id': job.id, 'status': job.status}
     if job.status == 'done' and job.file_path:
-        resp['download_url'] = f'/api/student/export/{job.id}/download'
+        resp['file_path'] = f'/api/student/export/{job.id}/download'
+        resp['filename'] = os.path.basename(job.file_path)
+    elif job.status == 'failed':
+        resp['error'] = 'Export failed to generate the file. Please retry.'
     return jsonify(resp), 200
 
 @student_bp.route('/export/<int:job_id>/download', methods=['GET'])
@@ -166,32 +215,48 @@ def download_export(job_id):
     filename = os.path.basename(job.file_path)
     return send_from_directory(directory, filename, as_attachment=True)
 
-def _eligible_drives(sp):
-    drives = PlacementDrive.query.filter_by(status='approved').all()
-    result = []
-    for d in drives:
-        if d.application_deadline < date.today():
-            continue
-        if sp.cgpa is not None and d.eligibility_cgpa is not None and sp.cgpa < d.eligibility_cgpa:
-            continue
-        if sp.branch and d.eligibility_branch:
-            try:
-                branches = json.loads(d.eligibility_branch)
-            except (ValueError, TypeError):
-                branches = []
-            if sp.branch not in branches:
-                continue
-        result.append(d)
-    return result
+def _parse_eligibility_branch(eligibility_branch_str):
+    """Parse eligibility_branch JSON string to list."""
+    if not eligibility_branch_str:
+        return []
+    try:
+        return json.loads(eligibility_branch_str)
+    except (ValueError, TypeError):
+        return []
+
+def _elig_state(sp, drive):
+    """
+    Compute eligibility state for a student-drive pair.
+    Returns: (applied: bool, eligible: bool, reasons: list[str])
+    """
+    reasons = []
+
+    # Check if already applied
+    applied = Application.query.filter_by(student_id=sp.id, drive_id=drive.id).first() is not None
+    if applied:
+        reasons.append("Already applied")
+
+    # Check CGPA eligibility
+    if sp.cgpa is not None and drive.eligibility_cgpa is not None and sp.cgpa < drive.eligibility_cgpa:
+        reasons.append(f"Requires CGPA ≥ {drive.eligibility_cgpa:.1f}")
+
+    # Check branch eligibility
+    branches = _parse_eligibility_branch(drive.eligibility_branch)
+    if branches and sp.branch and sp.branch not in branches:
+        reasons.append("Branch not eligible")
+
+    # Eligible if no reasons, or only "Already applied"
+    eligible = len(reasons) == 0 or (len(reasons) == 1 and reasons[0] == "Already applied")
+
+    return applied, eligible, reasons
 
 def _drive_dict(d):
-    try:
-        branches = json.loads(d.eligibility_branch) if d.eligibility_branch else []
-    except (ValueError, TypeError):
-        branches = []
+    """Create a minimal drive dict for dashboard teaser list."""
     return {
-        'id': d.id, 'title': d.title, 'company': d.company.company_name,
-        'ctc': d.ctc, 'location': d.location, 'deadline': str(d.application_deadline),
-        'eligibility_cgpa': d.eligibility_cgpa,
-        'eligibility_branch': branches,
+        'id': d.id,
+        'title': d.title,
+        'company_name': d.company.company_name,
+        'ctc': d.ctc,
+        'location': d.location,
+        'application_deadline': str(d.application_deadline),
     }

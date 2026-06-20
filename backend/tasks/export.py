@@ -18,7 +18,7 @@ def export_student_data(job_id):
         filepath = os.path.join(exports_dir, filename)
         with open(filepath, 'w', newline='', encoding='utf-8') as f:
             writer = csv.writer(f)
-            writer.writerow(['Company', 'Drive Title', 'Application Status', 'Applied At'])
+            writer.writerow(['Company', 'Drive Title', 'Application Status', 'Date'])
             for a in apps:
                 writer.writerow([
                     a.drive.company.company_name,
