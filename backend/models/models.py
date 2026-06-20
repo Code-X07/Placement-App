@@ -27,6 +27,7 @@ class StudentProfile(db.Model):
     year = db.Column(db.Integer)
     cgpa = db.Column(db.Float)
     resume_path = db.Column(db.String(255))
+    roll = db.Column(db.String(30), unique=True)
 
     applications = db.relationship('Application', backref='student',
                                    cascade='all, delete-orphan')
@@ -41,6 +42,7 @@ class CompanyProfile(db.Model):
     hr_contact = db.Column(db.String(120))
     website = db.Column(db.String(200))
     approval_status = db.Column(db.String(20), default='pending', nullable=False)
+    address = db.Column(db.Text)
 
     drives = db.relationship('PlacementDrive', backref='company',
                              cascade='all, delete-orphan')
@@ -58,6 +60,7 @@ class PlacementDrive(db.Model):
     application_deadline = db.Column(db.Date)
     status = db.Column(db.String(20), default='pending', nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    department = db.Column(db.String(100))
 
     applications = db.relationship('Application', backref='drive',
                                    cascade='all, delete-orphan')
