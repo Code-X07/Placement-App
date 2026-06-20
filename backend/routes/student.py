@@ -95,18 +95,8 @@ def upload_resume():
 @student_bp.route('/drives', methods=['GET'])
 @role_required('student')
 def list_drives():
-    from cache import cache_get, cache_set
     sp = _own_student()
-    cache_key = 'drives:approved:list'
-    all_drives_raw = cache_get(cache_key)
-    if all_drives_raw is None:
-        raw = PlacementDrive.query.filter_by(status='approved').all()
-        all_drives_raw = raw
-        cache_set(cache_key, all_drives_raw, ttl=300)
-    else:
-        # Cache stores serialized dicts, but we need drive objects for relationships
-        # Re-fetch from DB to ensure we have full objects with relationships
-        all_drives_raw = PlacementDrive.query.filter_by(status='approved').all()
+    all_drives_raw = PlacementDrive.query.filter_by(status='approved').all()
 
     today = date.today()
     result = []
@@ -157,7 +147,7 @@ def apply(drive_id):
     db.session.add(app_obj)
     db.session.commit()
     from cache import cache_delete
-    cache_delete('admin:dashboard:stats', 'drives:approved:list')
+    cache_delete('admin:dashboard:stats')
     return jsonify({'ok': True, 'application_id': app_obj.id}), 201
 
 @student_bp.route('/applications', methods=['GET'])
