@@ -37,7 +37,7 @@ def student_user(client):
 @pytest.fixture
 def company_user(client):
     resp = client.post('/api/auth/register', json={
-        'email': 'co@test.com', 'password': 'pw123', 'role': 'company', 'company_name': 'Corp'
+        'email': 'co@test.com', 'password': 'pw123', 'role': 'company', 'name': 'Corp'
     })
     return resp.json
 
@@ -45,7 +45,7 @@ def company_user(client):
 def approved_company_headers(client, admin_headers, app):
     resp = client.post('/api/auth/register', json={
         'email': 'approvedco@test.com', 'password': 'pw123',
-        'role': 'company', 'company_name': 'ApprovedCorp'
+        'role': 'company', 'name': 'ApprovedCorp'
     })
     token = resp.json['token']
     with app.app_context():

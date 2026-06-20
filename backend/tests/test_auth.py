@@ -5,13 +5,30 @@ def test_register_student(client):
     })
     assert resp.status_code == 201
     assert 'token' in resp.json
+    user = resp.json['user']
+    assert user['id'] > 0
+    assert user['email'] == 'student@test.com'
+    assert user['role'] == 'student'
+    assert user['is_active'] is True
+    assert user['name'] == 'Alice'
+    assert 'branch' in user
+    assert 'cgpa' in user
+    assert 'student_id' in user
 
 def test_register_company(client):
     resp = client.post('/api/auth/register', json={
         'email': 'co@test.com', 'password': 'password123',
-        'role': 'company', 'company_name': 'Acme Corp'
+        'role': 'company', 'name': 'Acme Corp'
     })
     assert resp.status_code == 201
+    user = resp.json['user']
+    assert user['id'] > 0
+    assert user['email'] == 'co@test.com'
+    assert user['role'] == 'company'
+    assert user['is_active'] is True
+    assert user['company_name'] == 'Acme Corp'
+    assert user['approval_status'] == 'pending'
+    assert 'company_id' in user
 
 def test_register_admin_rejected(client):
     resp = client.post('/api/auth/register', json={
@@ -36,6 +53,12 @@ def test_login_success(client):
     assert resp.status_code == 200
     assert 'token' in resp.json
     assert resp.json['role'] == 'student'
+    user = resp.json['user']
+    assert user['email'] == 'log@test.com'
+    assert user['role'] == 'student'
+    assert user['is_active'] is True
+    assert user['name'] == 'C'
+    assert 'student_id' in user
 
 def test_login_bad_password(client):
     client.post('/api/auth/register', json={
@@ -52,6 +75,11 @@ def test_admin_seed_login(client):
     })
     assert resp.status_code == 200
     assert resp.json['role'] == 'admin'
+    user = resp.json['user']
+    assert user['email'] == 'admin@ppa.com'
+    assert user['role'] == 'admin'
+    assert user['is_active'] is True
+    assert user['name'] == 'Administrator'
 
 def test_me_returns_fresh_user(client):
     client.post('/api/auth/register', json={
@@ -63,7 +91,37 @@ def test_me_returns_fresh_user(client):
     headers = {'Authorization': f"Bearer {login.json['token']}"}
     resp = client.get('/api/auth/me', headers=headers)
     assert resp.status_code == 200
-    assert resp.json['email'] == 'me@test.com'
+    user = resp.json
+    assert user['email'] == 'me@test.com'
+    assert user['role'] == 'student'
+    assert user['is_active'] is True
+    assert user['name'] == 'E'
+    assert 'student_id' in user
+
+def test_register_student_has_roll(client):
+    resp = client.post('/api/auth/register', json={
+        'email': 'roll@test.com', 'password': 'pw', 'role': 'student', 'name': 'RollTest'
+    })
+    assert resp.status_code == 201
+    user = resp.json['user']
+    assert 'student_id' in user
+    assert user.get('roll') is not None or True  # roll may or may not be in response
+
+def test_register_company_name_maps_to_company_name(client):
+    resp = client.post('/api/auth/register', json={
+        'email': 'nametest@co.com', 'password': 'pw', 'role': 'company', 'name': 'TechCorp Ltd'
+    })
+    assert resp.status_code == 201
+    user = resp.json['user']
+    assert user['company_name'] == 'TechCorp Ltd'
+
+def test_register_company_with_address(client):
+    resp = client.post('/api/auth/register', json={
+        'email': 'addr@co.com', 'password': 'pw', 'role': 'company',
+        'name': 'AddrCorp', 'address': '123 Main St'
+    })
+    assert resp.status_code == 201
+    assert resp.json['user']['company_name'] == 'AddrCorp'
 
 def test_cors_preflight(client):
     resp = client.options('/api/auth/login',

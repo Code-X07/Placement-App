@@ -37,7 +37,7 @@ def test_view_own_drive_applications(client, approved_company_headers, approved_
 def test_idor_other_company_drive(client, approved_company_headers, admin_headers, app):
     # Register and approve a second company
     resp2 = client.post('/api/auth/register', json={
-        'email': 'co2@test.com', 'password': 'pw', 'role': 'company', 'company_name': 'Corp2'
+        'email': 'co2@test.com', 'password': 'pw', 'role': 'company', 'name': 'Corp2'
     })
     with app.app_context():
         from models.models import CompanyProfile

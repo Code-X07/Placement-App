@@ -7,6 +7,33 @@ auth_bp = Blueprint('auth', __name__, url_prefix='/api/auth')
 
 _DUMMY_HASH = bcrypt.generate_password_hash('__dummy__').decode('utf-8')
 
+def user_payload(user):
+    """Build enriched user payload with role-specific fields."""
+    payload = {
+        'id': user.id,
+        'email': user.email,
+        'role': user.role,
+        'is_active': user.is_active,
+    }
+
+    if user.role == 'admin':
+        payload['name'] = 'Administrator'
+    elif user.role == 'company':
+        profile = user.company_profile
+        if profile:
+            payload['company_name'] = profile.company_name
+            payload['approval_status'] = profile.approval_status
+            payload['company_id'] = profile.id
+    elif user.role == 'student':
+        profile = user.student_profile
+        if profile:
+            payload['name'] = profile.name
+            payload['branch'] = profile.branch
+            payload['cgpa'] = profile.cgpa
+            payload['student_id'] = profile.id
+
+    return payload
+
 @auth_bp.route('/register', methods=['POST'])
 def register():
     data = request.get_json()
@@ -33,18 +60,23 @@ def register():
     db.session.flush()
 
     if role == 'student':
-        db.session.add(StudentProfile(user_id=user.id, name=data.get('name', '')))
+        sp = StudentProfile(user_id=user.id, name=data.get('name', ''))
+        db.session.add(sp)
+        db.session.flush()
+        sp.roll = f"STU{sp.id:05d}"
     else:
-        db.session.add(CompanyProfile(
+        cp = CompanyProfile(
             user_id=user.id,
-            company_name=data.get('company_name', ''),
+            company_name=data.get('name', ''),
             approval_status='pending',
-        ))
+            address=data.get('address'),
+        )
+        db.session.add(cp)
     db.session.commit()
 
     token = create_access_token(identity=str(user.id))
     return jsonify({'token': token, 'role': user.role,
-                    'user': {'id': user.id, 'email': user.email}}), 201
+                    'user': user_payload(user)}), 201
 
 @auth_bp.route('/login', methods=['POST'])
 def login():
@@ -63,7 +95,7 @@ def login():
         return jsonify({'error': 'Account deactivated', 'code': 'INACTIVE'}), 403
     token = create_access_token(identity=str(user.id))
     return jsonify({'token': token, 'role': user.role,
-                    'user': {'id': user.id, 'email': user.email}}), 200
+                    'user': user_payload(user)}), 200
 
 @auth_bp.route('/me', methods=['GET'])
 @jwt_required()
@@ -72,4 +104,4 @@ def me():
     user = User.query.get(int(user_id) if user_id else None)
     if not user or not user.is_active:
         return jsonify({'error': 'Account not found', 'code': 'NOT_FOUND'}), 404
-    return jsonify({'id': user.id, 'email': user.email, 'role': user.role}), 200
+    return jsonify(user_payload(user)), 200
