@@ -105,7 +105,7 @@ def test_register_student_has_roll(client):
     assert resp.status_code == 201
     user = resp.json['user']
     assert 'student_id' in user
-    assert user.get('roll') is not None or True  # roll may or may not be in response
+    assert user.get('roll') is not None  # roll must be present after register
 
 def test_register_company_name_maps_to_company_name(client):
     resp = client.post('/api/auth/register', json={

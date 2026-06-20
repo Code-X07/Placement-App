@@ -98,12 +98,17 @@ def list_drives():
     sp = _own_student()
     all_drives_raw = PlacementDrive.query.filter_by(status='approved').all()
 
+    # Load all student applications once to avoid N+1 queries
+    student_app_drive_ids = {
+        a.drive_id for a in Application.query.filter_by(student_id=sp.id).all()
+    }
+
     today = date.today()
     result = []
     for d in all_drives_raw:
         if d.application_deadline < today:
             continue
-        applied, eligible, reasons = _elig_state(sp, d)
+        applied, eligible, reasons = _elig_state(sp, d, student_app_drive_ids)
         result.append({
             'id': d.id,
             'title': d.title,
@@ -214,7 +219,7 @@ def _parse_eligibility_branch(eligibility_branch_str):
     except (ValueError, TypeError):
         return []
 
-def _elig_state(sp, drive):
+def _elig_state(sp, drive, applied_drive_ids):
     """
     Compute eligibility state for a student-drive pair.
     Returns: (applied: bool, eligible: bool, reasons: list[str])
@@ -222,7 +227,7 @@ def _elig_state(sp, drive):
     reasons = []
 
     # Check if already applied
-    applied = Application.query.filter_by(student_id=sp.id, drive_id=drive.id).first() is not None
+    applied = drive.id in applied_drive_ids
     if applied:
         reasons.append("Already applied")
 

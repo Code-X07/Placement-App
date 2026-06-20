@@ -31,6 +31,7 @@ def user_payload(user):
             payload['branch'] = profile.branch
             payload['cgpa'] = profile.cgpa
             payload['student_id'] = profile.id
+            payload['roll'] = profile.roll
 
     return payload
 
