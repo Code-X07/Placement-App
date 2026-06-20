@@ -14,12 +14,19 @@ def test_list_companies(client, admin_headers, company_user):
     assert resp.status_code == 200
     assert any(c['company_name'] == 'Corp' for c in resp.json)
 
+def test_list_companies_all_filter(client, admin_headers, company_user):
+    resp = client.get('/api/admin/companies?approval_status=all', headers=admin_headers)
+    assert resp.status_code == 200
+    assert any(c['company_name'] == 'Corp' for c in resp.json)
+
 def test_approve_company(client, admin_headers, company_user, app):
     with app.app_context():
         from models.models import CompanyProfile
         cp = CompanyProfile.query.filter_by(company_name='Corp').first()
         resp = client.put(f'/api/admin/companies/{cp.id}/approve', headers=admin_headers)
         assert resp.status_code == 200
+        assert resp.json['id'] == cp.id
+        assert resp.json['approval_status'] == 'approved'
         from models.models import db
         db.session.expire_all()
         assert CompanyProfile.query.get(cp.id).approval_status == 'approved'
@@ -30,6 +37,8 @@ def test_reject_company(client, admin_headers, company_user, app):
         cp = CompanyProfile.query.filter_by(company_name='Corp').first()
         resp = client.put(f'/api/admin/companies/{cp.id}/reject', headers=admin_headers)
         assert resp.status_code == 200
+        assert resp.json['id'] == cp.id
+        assert resp.json['approval_status'] == 'rejected'
 
 def test_blacklist_company(client, admin_headers, company_user, app):
     with app.app_context():
@@ -37,10 +46,49 @@ def test_blacklist_company(client, admin_headers, company_user, app):
         cp = CompanyProfile.query.filter_by(company_name='Corp').first()
         resp = client.put(f'/api/admin/companies/{cp.id}/blacklist', headers=admin_headers)
         assert resp.status_code == 200
+        assert resp.json['id'] == cp.id
+        assert resp.json['approval_status'] == 'rejected'
         from models.models import db
         db.session.expire_all()
         u = User.query.get(cp.user_id)
         assert u.is_active == False
+
+def test_list_drives(client, admin_headers, approved_drive):
+    resp = client.get('/api/admin/drives', headers=admin_headers)
+    assert resp.status_code == 200
+    assert any(d['title'] == 'Test Drive' for d in resp.json)
+    assert any('company_name' in d for d in resp.json)
+    assert any('application_deadline' in d for d in resp.json)
+
+def test_approve_drive(client, admin_headers, approved_drive, app):
+    with app.app_context():
+        from models.models import PlacementDrive
+        drive = PlacementDrive.query.get(approved_drive)
+        drive.status = 'pending'
+        from models.models import db
+        db.session.commit()
+    resp = client.put(f'/api/admin/drives/{approved_drive}/approve', headers=admin_headers)
+    assert resp.status_code == 200
+    assert resp.json['id'] == approved_drive
+    assert resp.json['status'] == 'approved'
+
+def test_reject_drive(client, admin_headers, approved_drive):
+    resp = client.put(f'/api/admin/drives/{approved_drive}/reject', headers=admin_headers)
+    assert resp.status_code == 200
+    assert resp.json['id'] == approved_drive
+    assert resp.json['status'] == 'rejected'
+
+def test_list_students_has_roll(client, admin_headers, student_user, app):
+    with app.app_context():
+        from models.models import StudentProfile
+        sp = StudentProfile.query.filter_by(name='Stu').first()
+        if sp:
+            sp.roll = '2024001'
+            from models.models import db
+            db.session.commit()
+    resp = client.get('/api/admin/students', headers=admin_headers)
+    assert resp.status_code == 200
+    assert any('roll' in s for s in resp.json)
 
 def test_deactivate_student(client, admin_headers, student_user, app):
     with app.app_context():
@@ -48,19 +96,11 @@ def test_deactivate_student(client, admin_headers, student_user, app):
         u = User.query.filter_by(email='stu@test.com').first()
         resp = client.put(f'/api/admin/students/{u.id}/deactivate', headers=admin_headers)
         assert resp.status_code == 200
+        assert resp.json['id'] == u.id
+        assert resp.json['is_active'] == False
         from models.models import db
         db.session.expire_all()
         assert User.query.get(u.id).is_active == False
-
-def test_search_student(client, admin_headers, student_user):
-    resp = client.get('/api/admin/search?q=Stu&type=student', headers=admin_headers)
-    assert resp.status_code == 200
-    assert isinstance(resp.json, list)
-
-def test_list_drives(client, admin_headers, approved_drive):
-    resp = client.get('/api/admin/drives', headers=admin_headers)
-    assert resp.status_code == 200
-    assert any(d['title'] == 'Test Drive' for d in resp.json)
 
 def test_deactivate_non_student_blocked(client, admin_headers, company_user, app):
     with app.app_context():
@@ -69,6 +109,32 @@ def test_deactivate_non_student_blocked(client, admin_headers, company_user, app
         resp = client.put(f'/api/admin/students/{u.id}/deactivate', headers=admin_headers)
         assert resp.status_code == 400
         assert resp.json['code'] == 'NOT_STUDENT'
+
+def test_search_student(client, admin_headers, student_user):
+    resp = client.get('/api/admin/search?q=Stu&type=student', headers=admin_headers)
+    assert resp.status_code == 200
+    assert resp.json['type'] == 'student'
+    assert 'results' in resp.json
+    assert isinstance(resp.json['results'], list)
+    if resp.json['results']:
+        result = resp.json['results'][0]
+        assert 'id' in result and 'name' in result and 'email' in result and 'branch' in result
+
+def test_search_company(client, admin_headers, company_user):
+    resp = client.get('/api/admin/search?q=Corp&type=company', headers=admin_headers)
+    assert resp.status_code == 200
+    assert resp.json['type'] == 'company'
+    assert 'results' in resp.json
+    assert isinstance(resp.json['results'], list)
+    if resp.json['results']:
+        result = resp.json['results'][0]
+        assert 'id' in result and 'name' in result and 'email' in result and 'status' in result
+
+def test_search_empty_query(client, admin_headers):
+    resp = client.get('/api/admin/search?q=&type=student', headers=admin_headers)
+    assert resp.status_code == 200
+    assert resp.json['type'] == 'student'
+    assert resp.json['results'] == []
 
 def test_blacklisted_company_drives_hidden(client, admin_headers,
                                            approved_company_headers, approved_drive,
