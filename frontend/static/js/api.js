@@ -5,7 +5,7 @@
    =========================================================================== */
 import { mockAdapter } from './mock.js';
 
-const USE_MOCK = true;   // <-- set to false to hit the real /api/* backend
+const USE_MOCK = false;  // <-- set to false to hit the real /api/* backend
 
 // lightweight event bus for toasts + auth-expired (avoids store/router cycles)
 export const bus = new Vue();
