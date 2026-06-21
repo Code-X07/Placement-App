@@ -3,6 +3,9 @@ from routes.decorators import role_required
 from models.models import db, User, StudentProfile, CompanyProfile, PlacementDrive, Application
 from cache import cache_get, cache_set, cache_delete
 
+def _like_escape(s):
+    return s.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
+
 admin_bp = Blueprint('admin', __name__, url_prefix='/api/admin')
 
 @admin_bp.route('/dashboard', methods=['GET'])
@@ -30,13 +33,15 @@ def list_companies():
     companies = q.all()
     return jsonify([{
         'id': c.id, 'company_name': c.company_name, 'hr_contact': c.hr_contact,
-        'website': c.website, 'approval_status': c.approval_status, 'email': c.user.email
+        'website': c.website, 'approval_status': c.approval_status
     } for c in companies]), 200
 
 @admin_bp.route('/companies/<int:company_id>/approve', methods=['PUT'])
 @role_required('admin')
 def approve_company(company_id):
-    cp = CompanyProfile.query.get_or_404(company_id)
+    cp = db.session.get(CompanyProfile, company_id)
+    if cp is None:
+        return jsonify({'error': 'Company not found', 'code': 'NOT_FOUND'}), 404
     cp.approval_status = 'approved'
     db.session.commit()
     cache_delete('admin:dashboard:stats', 'drives:approved:list')
@@ -45,24 +50,30 @@ def approve_company(company_id):
 @admin_bp.route('/companies/<int:company_id>/reject', methods=['PUT'])
 @role_required('admin')
 def reject_company(company_id):
-    cp = CompanyProfile.query.get_or_404(company_id)
+    cp = db.session.get(CompanyProfile, company_id)
+    if cp is None:
+        return jsonify({'error': 'Company not found', 'code': 'NOT_FOUND'}), 404
     cp.approval_status = 'rejected'
     PlacementDrive.query.filter_by(company_id=cp.id, status='approved').update(
         {'status': 'rejected'})
     db.session.commit()
-    cache_delete('admin:dashboard:stats', 'drives:approved:list')
+    cache_delete('admin:dashboard:stats', 'drives:approved:list',
+                 f'company:{cp.user_id}:dashboard')
     return jsonify({'id': cp.id, 'approval_status': cp.approval_status}), 200
 
 @admin_bp.route('/companies/<int:company_id>/blacklist', methods=['PUT'])
 @role_required('admin')
 def blacklist_company(company_id):
-    cp = CompanyProfile.query.get_or_404(company_id)
+    cp = db.session.get(CompanyProfile, company_id)
+    if cp is None:
+        return jsonify({'error': 'Company not found', 'code': 'NOT_FOUND'}), 404
     cp.approval_status = 'rejected'
     cp.user.is_active = False
     PlacementDrive.query.filter_by(company_id=cp.id, status='approved').update(
         {'status': 'rejected'})
     db.session.commit()
-    cache_delete('admin:dashboard:stats', 'drives:approved:list')
+    cache_delete('admin:dashboard:stats', 'drives:approved:list',
+                 f'company:{cp.user_id}:dashboard')
     return jsonify({'id': cp.id, 'approval_status': cp.approval_status}), 200
 
 @admin_bp.route('/drives', methods=['GET'])
@@ -77,7 +88,9 @@ def list_drives():
 @admin_bp.route('/drives/<int:drive_id>/approve', methods=['PUT'])
 @role_required('admin')
 def approve_drive(drive_id):
-    drive = PlacementDrive.query.get_or_404(drive_id)
+    drive = db.session.get(PlacementDrive, drive_id)
+    if drive is None:
+        return jsonify({'error': 'Drive not found', 'code': 'NOT_FOUND'}), 404
     drive.status = 'approved'
     db.session.commit()
     cache_delete('admin:dashboard:stats', 'drives:approved:list')
@@ -86,7 +99,9 @@ def approve_drive(drive_id):
 @admin_bp.route('/drives/<int:drive_id>/reject', methods=['PUT'])
 @role_required('admin')
 def reject_drive(drive_id):
-    drive = PlacementDrive.query.get_or_404(drive_id)
+    drive = db.session.get(PlacementDrive, drive_id)
+    if drive is None:
+        return jsonify({'error': 'Drive not found', 'code': 'NOT_FOUND'}), 404
     drive.status = 'rejected'
     db.session.commit()
     cache_delete('admin:dashboard:stats', 'drives:approved:list')
@@ -104,7 +119,9 @@ def list_students():
 @admin_bp.route('/students/<int:user_id>/deactivate', methods=['PUT'])
 @role_required('admin')
 def deactivate_student(user_id):
-    user = User.query.get_or_404(user_id)
+    user = db.session.get(User, user_id)
+    if user is None:
+        return jsonify({'error': 'User not found', 'code': 'NOT_FOUND'}), 404
     if user.role != 'student':
         return jsonify({'error': 'Target is not a student', 'code': 'NOT_STUDENT'}), 400
     user.is_active = False
@@ -119,13 +136,13 @@ def search():
     if not q:
         return jsonify({'type': search_type, 'results': []}), 200
     if search_type == 'student':
-        rows = StudentProfile.query.filter(StudentProfile.name.ilike(f'%{q}%')).all()
+        rows = StudentProfile.query.filter(StudentProfile.name.ilike(f'%{_like_escape(q)}%', escape='\\')).all()
         return jsonify({
             'type': search_type,
             'results': [{'id': s.user.id, 'name': s.name, 'email': s.user.email, 'branch': s.branch}
                         for s in rows]
         }), 200
-    rows = CompanyProfile.query.filter(CompanyProfile.company_name.ilike(f'%{q}%')).all()
+    rows = CompanyProfile.query.filter(CompanyProfile.company_name.ilike(f'%{_like_escape(q)}%', escape='\\')).all()
     return jsonify({
         'type': search_type,
         'results': [{'id': c.id, 'name': c.company_name, 'email': c.user.email, 'status': c.approval_status}

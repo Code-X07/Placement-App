@@ -170,3 +170,14 @@ def test_rejected_company_drives_hidden(client, admin_headers,
 
     after = client.get('/api/student/drives', headers=stu_headers)
     assert all(d['id'] != approved_drive for d in after.json)
+
+def test_list_companies_omits_user_email_field(client, admin_headers, company_user):
+    resp = client.get('/api/admin/companies', headers=admin_headers)
+    assert resp.status_code == 200
+    assert all('email' not in c for c in resp.json)
+
+def test_search_escapes_like_wildcards(client, admin_headers, company_user):
+    # a literal '%' query must not match everything
+    resp = client.get('/api/admin/search?type=student&q=%25', headers=admin_headers)
+    assert resp.status_code == 200
+    assert resp.json['results'] == []
