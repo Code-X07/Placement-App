@@ -35,6 +35,7 @@ def create_app(config=None):
         broker_url=app.config['CELERY_BROKER_URL'],
         result_backend=app.config['CELERY_RESULT_BACKEND'],
         task_always_eager=app.config.get('CELERY_TASK_ALWAYS_EAGER', False),
+        beat_schedule=app.config.get('BEAT_SCHEDULE', {}),
     )
 
     class ContextTask(celery.Task):

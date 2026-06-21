@@ -18,7 +18,7 @@ class Config:
     ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL', 'admin@ppa.com')
     MAX_CONTENT_LENGTH = 5 * 1024 * 1024  # 5 MB
     CELERY_TASK_ALWAYS_EAGER = False
-    CELERYBEAT_SCHEDULE = {
+    BEAT_SCHEDULE = {
         'daily-reminders': {
             'task': 'tasks.reminders.send_deadline_reminders',
             'schedule': crontab(hour=8, minute=0),
