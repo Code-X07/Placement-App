@@ -47,20 +47,25 @@ def dashboard():
 def update_profile():
     cp = _own_company()
     data = request.get_json() or {}
-    for field in ('company_name', 'hr_contact', 'website'):
+    for field in ('company_name', 'hr_contact', 'website', 'address'):
         if field in data:
             setattr(cp, field, data[field])
     db.session.commit()
     from cache import cache_delete
     cache_delete(f'company:{get_jwt_identity()}:dashboard')
-    return jsonify({'message': 'Profile updated'}), 200
+    return jsonify({
+        'company_name': cp.company_name, 'hr_contact': cp.hr_contact,
+        'website': cp.website, 'address': cp.address,
+        'approval_status': cp.approval_status
+    }), 200
 
 @company_bp.route('/drives', methods=['POST'])
 @role_required('company')
 def create_drive():
     cp = _own_company()
     if cp.approval_status != 'approved':
-        return jsonify({'error': 'NOT_APPROVED'}), 403
+        return jsonify({'error': 'Your company account is awaiting admin approval',
+                        'code': 'NOT_APPROVED'}), 403
     data = request.get_json() or {}
     required = ('title', 'description', 'ctc', 'location',
                  'eligibility_cgpa', 'eligibility_branch', 'application_deadline')
@@ -107,8 +112,11 @@ def create_drive():
 def drive_applications(drive_id):
     cp = _own_company()
     if cp.approval_status != 'approved':
-        return jsonify({'error': 'NOT_APPROVED'}), 403
-    drive = PlacementDrive.query.get_or_404(drive_id)
+        return jsonify({'error': 'Your company account is awaiting admin approval',
+                        'code': 'NOT_APPROVED'}), 403
+    drive = db.session.get(PlacementDrive, drive_id)
+    if drive is None:
+        return jsonify({'error': 'Drive not found', 'code': 'NOT_FOUND'}), 404
     if drive.company_id != cp.id:
         return jsonify({'error': 'Access denied', 'code': 'FORBIDDEN'}), 403
     apps = Application.query.filter_by(drive_id=drive_id).all()
@@ -127,8 +135,11 @@ def drive_applications(drive_id):
 def update_application_status(app_id):
     cp = _own_company()
     if cp.approval_status != 'approved':
-        return jsonify({'error': 'NOT_APPROVED'}), 403
-    app_obj = Application.query.get_or_404(app_id)
+        return jsonify({'error': 'Your company account is awaiting admin approval',
+                        'code': 'NOT_APPROVED'}), 403
+    app_obj = db.session.get(Application, app_id)
+    if app_obj is None:
+        return jsonify({'error': 'Application not found', 'code': 'NOT_FOUND'}), 404
     if app_obj.drive.company_id != cp.id:
         return jsonify({'error': 'Access denied', 'code': 'FORBIDDEN'}), 403
     data = request.get_json() or {}
@@ -148,8 +159,11 @@ def update_application_status(app_id):
 def offer_letter(app_id):
     cp = _own_company()
     if cp.approval_status != 'approved':
-        return jsonify({'error': 'NOT_APPROVED'}), 403
-    app_obj = Application.query.get_or_404(app_id)
+        return jsonify({'error': 'Your company account is awaiting admin approval',
+                        'code': 'NOT_APPROVED'}), 403
+    app_obj = db.session.get(Application, app_id)
+    if app_obj is None:
+        return jsonify({'error': 'Application not found', 'code': 'NOT_FOUND'}), 404
     if app_obj.drive.company_id != cp.id:
         return jsonify({'error': 'Access denied', 'code': 'FORBIDDEN'}), 403
     if app_obj.status != 'selected':
@@ -164,7 +178,7 @@ def offer_letter(app_id):
         'student_name': student.name,
         'position': drive.title,
         'department': drive.department or '',
-        'ctc': f'{drive.ctc} LPA',
+        'ctc': f'{drive.ctc:g} LPA',
         'location': drive.location,
         'intro': (f'Following our recent discussions, we are delighted to offer you the position of '
                   f'{drive.title} at {drive.company.company_name}. We were impressed with your academic '
@@ -179,8 +193,11 @@ def offer_letter(app_id):
 def resume_download(app_id):
     cp = _own_company()
     if cp.approval_status != 'approved':
-        return jsonify({'error': 'NOT_APPROVED'}), 403
-    app_obj = Application.query.get_or_404(app_id)
+        return jsonify({'error': 'Your company account is awaiting admin approval',
+                        'code': 'NOT_APPROVED'}), 403
+    app_obj = db.session.get(Application, app_id)
+    if app_obj is None:
+        return jsonify({'error': 'Application not found', 'code': 'NOT_FOUND'}), 404
     if app_obj.drive.company_id != cp.id:
         return jsonify({'error': 'Access denied', 'code': 'FORBIDDEN'}), 403
     student = app_obj.student

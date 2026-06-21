@@ -229,3 +229,20 @@ def test_resume_no_resume_404(client, approved_company_headers, approved_drive, 
                       headers=approved_company_headers)
     assert resp.status_code == 404
     assert resp.json['code'] == 'NO_RESUME'
+
+def test_create_drive_not_approved_has_code_and_human_error(client, company_user):
+    h = {'Authorization': f"Bearer {company_user['token']}"}
+    resp = client.post('/api/company/drives', headers=h, json={
+        'title': 'X', 'description': 'Y', 'ctc': 5.0, 'location': 'Z',
+        'eligibility_cgpa': 6.0, 'eligibility_branch': ['CS'],
+        'application_deadline': str(date.today() + timedelta(days=10))})
+    assert resp.status_code == 403
+    assert resp.json['code'] == 'NOT_APPROVED'
+    assert resp.json['error'] != 'NOT_APPROVED'  # human-readable, not the enum
+
+def test_company_profile_update_returns_profile(client, approved_company_headers):
+    resp = client.put('/api/company/profile', headers=approved_company_headers,
+                      json={'website': 'https://x.io'})
+    assert resp.status_code == 200
+    assert resp.json['website'] == 'https://x.io'
+    assert 'company_name' in resp.json
