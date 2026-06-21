@@ -1,19 +1,20 @@
 import os
 import csv
-from datetime import datetime
+from datetime import datetime, timezone
 from app import celery
 from models.models import db, ExportJob, Application
 
-@celery.task
+@celery.task(name='tasks.export.export_student_data')
 def export_student_data(job_id):
-    job = ExportJob.query.get(job_id)
+    job = db.session.get(ExportJob, job_id)
     if not job:
         return
     try:
         apps = Application.query.filter_by(student_id=job.student_id).all()
-        exports_dir = os.path.join(os.path.dirname(__file__), '..', 'uploads', 'exports')
+        exports_dir = os.path.abspath(
+            os.path.join(os.path.dirname(__file__), '..', 'uploads', 'exports'))
         os.makedirs(exports_dir, exist_ok=True)
-        timestamp = datetime.utcnow().strftime('%Y%m%d%H%M%S')
+        timestamp = datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')
         filename = f'{job.student_id}_{timestamp}.csv'
         filepath = os.path.join(exports_dir, filename)
         with open(filepath, 'w', newline='', encoding='utf-8') as f:
@@ -31,6 +32,11 @@ def export_student_data(job_id):
         db.session.commit()
     except Exception:
         db.session.rollback()
-        job.status = 'failed'
-        db.session.commit()
+        job = db.session.get(ExportJob, job_id)  # re-fetch after rollback
+        if job:
+            job.status = 'failed'
+            try:
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
         raise

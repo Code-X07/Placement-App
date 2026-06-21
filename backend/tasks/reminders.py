@@ -6,13 +6,18 @@ from models.models import PlacementDrive, Application
 
 logger = logging.getLogger(__name__)
 
-@celery.task
-def send_deadline_reminders():
+@celery.task(name='tasks.reminders.send_deadline_reminders', bind=True, max_retries=3)
+def send_deadline_reminders(self):
     tomorrow = date.today() + timedelta(days=1)
-    drives = PlacementDrive.query.filter_by(
-        application_deadline=tomorrow, status='approved'
-    ).all()
+    try:
+        drives = PlacementDrive.query.filter_by(
+            application_deadline=tomorrow, status='approved'
+        ).all()
+    except Exception as e:
+        raise self.retry(exc=e, countdown=300)
     for drive in drives:
+        if not drive.company:
+            continue
         applicants = Application.query.filter_by(
             drive_id=drive.id, status='applied'
         ).all()

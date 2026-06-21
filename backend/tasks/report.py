@@ -17,8 +17,8 @@ _REPORT_TMPL = """<html><body>
 </ul>
 </body></html>"""
 
-@celery.task
-def send_monthly_report():
+@celery.task(name='tasks.report.send_monthly_report', bind=True, max_retries=3)
+def send_monthly_report(self):
     today = date.today()
     first = today.replace(day=1)
     end = first - timedelta(days=1)
@@ -52,3 +52,4 @@ def send_monthly_report():
         logger.info(f'Monthly report sent for {end.strftime("%B %Y")}')
     except Exception as e:
         logger.error(f'Failed to send monthly report: {e}')
+        raise self.retry(exc=e, countdown=300)
