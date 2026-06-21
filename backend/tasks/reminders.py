@@ -38,3 +38,4 @@ def send_deadline_reminders(self):
                 mail.send(msg)
             except Exception as e:
                 logger.error(f'Failed to send reminder to {app.student.user.email}: {e}')
+                raise self.retry(exc=e, countdown=300, max_retries=3)

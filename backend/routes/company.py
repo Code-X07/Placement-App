@@ -43,7 +43,7 @@ def dashboard():
     return jsonify(result), 200
 
 @company_bp.route('/profile', methods=['PUT'])
-@role_required('company')
+@role_required('company', require_approved=False)
 def update_profile():
     cp = _own_company()
     data = request.get_json() or {}

@@ -246,3 +246,12 @@ def test_company_profile_update_returns_profile(client, approved_company_headers
     assert resp.status_code == 200
     assert resp.json['website'] == 'https://x.io'
     assert 'company_name' in resp.json
+
+def test_pending_company_can_update_profile(client, company_user):
+    headers = {'Authorization': f"Bearer {company_user['token']}"}
+    resp = client.put('/api/company/profile', headers=headers, json={
+        'company_name': 'Apex Updated', 'hr_contact': 'hr@apex.com',
+        'website': 'https://apex.com', 'address': '123 Main St'
+    })
+    assert resp.status_code == 200
+    assert resp.json['company_name'] == 'Apex Updated'
