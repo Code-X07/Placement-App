@@ -191,7 +191,7 @@ def export_status(job_id):
         return jsonify({'error': 'Access denied', 'code': 'FORBIDDEN'}), 403
     resp = {'job_id': job.id, 'status': job.status}
     if job.status == 'done' and job.file_path:
-        resp['file_path'] = f'/api/student/export/{job.id}/download'
+        resp['file_path'] = f'/student/export/{job.id}/download'
         resp['filename'] = os.path.basename(job.file_path)
     elif job.status == 'failed':
         resp['error'] = 'Export failed to generate the file. Please retry.'

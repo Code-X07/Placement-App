@@ -144,7 +144,7 @@ def test_export_status_returns_file_path_and_filename(client, student_user):
     assert status_resp.json['status'] == 'done'
     assert 'file_path' in status_resp.json
     assert 'filename' in status_resp.json
-    assert status_resp.json['file_path'].startswith('/api/student/export/')
+    assert status_resp.json['file_path'].startswith('/student/export/')
 
 def test_export_download(client, student_user):
     headers = _stu(client, student_user)
@@ -156,7 +156,7 @@ def test_export_download(client, student_user):
     status_resp = client.get(f'/api/student/export/{job_id}', headers=headers)
     assert status_resp.status_code == 200
     download_url = status_resp.json['file_path']
-    dl_resp = client.get(download_url, headers=headers)
+    dl_resp = client.get('/api' + download_url, headers=headers)
     assert dl_resp.status_code == 200
     # Flask maps .csv to application/vnd.ms-excel or text/csv depending on config
     assert dl_resp.content_type in ('text/csv', 'application/vnd.ms-excel')
