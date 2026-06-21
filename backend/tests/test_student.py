@@ -124,7 +124,7 @@ def test_export_status_idor(client, student_user):
     job_id = export_resp.json['job_id']
     # Second student tries to poll the job
     stu2 = client.post('/api/auth/register', json={
-        'email': 'stu2@test.com', 'password': 'pw', 'role': 'student', 'name': 'Bob'
+        'email': 'stu2@test.com', 'password': 'pw1234', 'role': 'student', 'name': 'Bob'
     })
     stu2_headers = {'Authorization': f"Bearer {stu2.json['token']}"}
     resp = client.get(f'/api/student/export/{job_id}', headers=stu2_headers)
@@ -167,7 +167,7 @@ def test_export_download_idor(client, student_user):
     export_resp = client.post('/api/student/export', headers=headers)
     job_id = export_resp.json['job_id']
     stu2 = client.post('/api/auth/register', json={
-        'email': 'stu2b@test.com', 'password': 'pw', 'role': 'student', 'name': 'Bob'
+        'email': 'stu2b@test.com', 'password': 'pw1234', 'role': 'student', 'name': 'Bob'
     })
     stu2_headers = {'Authorization': f"Bearer {stu2.json['token']}"}
     resp = client.get(f'/api/student/export/{job_id}/download', headers=stu2_headers)
