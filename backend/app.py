@@ -31,11 +31,19 @@ def create_app(config=None):
     mail.init_app(app)
     CORS(app, resources={r"/api/*": {"origins": "*"}})
 
+    # Load beat_schedule from the config class (Flask only auto-loads uppercase keys)
+    beat_schedule_value = {}
+    if isinstance(config, type):
+        beat_schedule_value = getattr(config, 'beat_schedule', {})
+    elif config is None:
+        from config import Config as DefaultConfig
+        beat_schedule_value = getattr(DefaultConfig, 'beat_schedule', {})
+
     celery.conf.update(
         broker_url=app.config['CELERY_BROKER_URL'],
         result_backend=app.config['CELERY_RESULT_BACKEND'],
         task_always_eager=app.config.get('CELERY_TASK_ALWAYS_EAGER', False),
-        beat_schedule=app.config.get('BEAT_SCHEDULE', {}),
+        beat_schedule=beat_schedule_value,
     )
 
     class ContextTask(celery.Task):
