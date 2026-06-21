@@ -88,7 +88,14 @@ def upload_resume():
     if not f.filename.lower().endswith('.pdf'):
         return jsonify({'error': 'Only PDF files allowed',
                         'code': 'INVALID_FILE_TYPE'}), 400
+    head = f.read(5)
+    f.seek(0)
+    if not head.startswith(b'%PDF'):
+        return jsonify({'error': 'File is not a valid PDF',
+                        'code': 'INVALID_FILE_TYPE'}), 400
     filename = secure_filename(f'{sp.id}_{f.filename}')
+    if not filename or not filename.lower().endswith('.pdf'):
+        filename = f'{sp.id}_resume.pdf'
     upload_dir = os.path.join(current_app.root_path, 'uploads', 'resumes')
     os.makedirs(upload_dir, exist_ok=True)
     f.save(os.path.join(upload_dir, filename))

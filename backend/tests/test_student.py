@@ -1,4 +1,5 @@
 from datetime import date, timedelta
+import io
 
 def _stu(client, student_user):
     return {'Authorization': f"Bearer {student_user['token']}"}
@@ -252,3 +253,19 @@ def test_put_profile_returns_full_profile(client, student_user):
     assert resp.json['branch'] == 'CS'
     assert resp.json['phone'] == '999'
     assert 'email' in resp.json
+
+def test_upload_rejects_non_pdf_by_content(client, student_user):
+    h = {'Authorization': f"Bearer {student_user['token']}"}
+    data = {'resume': (io.BytesIO(b'GIF89a not a pdf'), 'evil.pdf')}
+    resp = client.post('/api/student/profile/resume', headers=h,
+                       data=data, content_type='multipart/form-data')
+    assert resp.status_code == 400
+    assert resp.json['code'] == 'INVALID_FILE_TYPE'
+
+def test_upload_accepts_real_pdf(client, student_user):
+    h = {'Authorization': f"Bearer {student_user['token']}"}
+    data = {'resume': (io.BytesIO(b'%PDF-1.4 minimal'), 'cv.pdf')}
+    resp = client.post('/api/student/profile/resume', headers=h,
+                       data=data, content_type='multipart/form-data')
+    assert resp.status_code == 200
+    assert resp.json['filename'].endswith('.pdf')
