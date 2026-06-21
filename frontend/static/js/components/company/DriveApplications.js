@@ -70,7 +70,7 @@ export default {
                 <td>
                   <div class="d-flex align-items-center gap-3">
                     <div class="row-ava round soft">{{ initials(r.name) }}</div>
-                    <div><div class="cell-strong">{{ r.name }}</div><div class="cell-sub">{{ r.roll }}</div></div>
+                    <div><div class="cell-strong">{{ r.name }}</div><div class="cell-sub">{{ r.roll || '—' }}</div></div>
                   </div>
                 </td>
                 <td>{{ r.branch }}</td>

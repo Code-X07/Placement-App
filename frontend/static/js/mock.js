@@ -97,7 +97,7 @@ function userPayload(u) {
   return base;
 }
 
-const ok   = (data) => ({ status:200, statusText:'OK', data, headers:{}, config:{} });
+const ok   = (data, status = 200) => ({ status, statusText:'OK', data, headers:{}, config:{} });
 const fail = (status, error, code) => ({ status, statusText:'ERR', data:{ error, code:code||'ERR' }, headers:{}, config:{} });
 
 /* ---------- export job lifecycle (alternating done/failed) --------------- */
@@ -111,7 +111,7 @@ function buildCsv(studentId) {
   });
   const csv = 'Company,Drive Title,Application Status,Date\n' +
     rows.map(r => r.map(x => `"${x}"`).join(',')).join('\n');
-  return 'data:text/csv;base64,' + btoa(unescape(encodeURIComponent(csv)));
+  return csv; // return plain CSV string, will be wrapped in blob by download handler
 }
 
 /* ---------- route handlers ----------------------------------------------- */
@@ -131,7 +131,7 @@ function route(method, path, params, body, user) {
     users.push(nu);
     if (body.role === 'company') companies.push({ id:'cp_new_'+id, user_id:id, company_name:body.name||'New Company', hr_contact:body.email, website:'', address:body.address||'', approval_status:'pending' });
     if (body.role === 'student') students.push({ id:'sp_new_'+id, user_id:id, roll:'NEW', name:body.name||'New Student', email:body.email, phone:'', branch:'Computer Science', year:2026, cgpa:0, resume_path:'' });
-    return ok({ token:'mock.' + id, user:userPayload(nu), role:nu.role });
+    return ok({ token:'mock.' + id, user:userPayload(nu), role:nu.role }, 201);
   }
   if (method === 'get' && path === '/me') {
     if (!user) return fail(401, 'Token missing or expired', 'NO_TOKEN');
@@ -208,7 +208,7 @@ function route(method, path, params, body, user) {
     if (method === 'post' && path === '/company/drives') {
       const id = 'd_new_' + (++exportSeq);
       drives.push({ id, company_id:c.id, status:'pending', created_at:'2026-09-01', ...body, eligibility_branch: body.eligibility_branch||[] });
-      return ok({ id, status:'pending' });
+      return ok({ id, status:'pending' }, 201);
     }
     let m;
     if (method === 'get' && (m = path.match(/^\/company\/drives\/(\w+)\/applications$/))) {
@@ -218,6 +218,10 @@ function route(method, path, params, body, user) {
     if (method === 'put' && (m = path.match(/^\/company\/applications\/(\w+)\/status$/))) {
       for (const k in driveApplicants) { const a = driveApplicants[k].find(a => a.id === m[1]); if (a) { a.status = body.status; return ok({ id:a.id, status:a.status }); } }
       return fail(404, 'Application not found');
+    }
+    if (method === 'put' && path === '/company/profile') {
+      Object.assign(c, { company_name:body.company_name, hr_contact:body.hr_contact, website:body.website, address:body.address });
+      return ok({ company_name:c.company_name, hr_contact:c.hr_contact, website:c.website, address:c.address, approval_status:c.approval_status });
     }
     if (method === 'get' && (m = path.match(/^\/company\/applications\/(\w+)\/offer-letter$/))) {
       let app=null; for (const k in driveApplicants){ const a=driveApplicants[k].find(a=>a.id===m[1]); if(a){app=a;break;} }
@@ -287,7 +291,7 @@ function route(method, path, params, body, user) {
       if (e.applied) return fail(409, 'You have already applied to this drive', 'DUPLICATE');
       if (!e.eligible) return fail(400, e.reasons.join('; ') || 'You are not eligible for this drive', 'INELIGIBLE');
       applications.push({ id:'a_'+(++exportSeq), student_id:sp.id, drive_id:d.id, applied_at:'2026-09-01', status:'applied' });
-      return ok({ ok:true });
+      return ok({ ok:true }, 201);
     }
     if (method === 'get' && path === '/student/applications') {
       return ok(applications.filter(a => a.student_id === sp.id).map(a => { const d=driveById(a.drive_id); const c=companyById(d.company_id);
@@ -298,14 +302,21 @@ function route(method, path, params, body, user) {
       const jobId = 'job_' + exportSeq;
       // alternate: 1st export succeeds, 2nd fails, ... -> reviewer sees both states
       exportJobs[jobId] = { id:jobId, polls:0, willSucceed:(exportCount % 2 === 1), student:sp.id };
-      return ok({ job_id:jobId, status:'pending' });
+      return ok({ job_id:jobId, status:'pending' }, 202);
     }
     if (method === 'get' && (m = path.match(/^\/student\/export\/(\w+)$/))) {
       const j = exportJobs[m[1]]; if (!j) return fail(404, 'Export job not found');
       j.polls++;
       if (j.polls < 2) return ok({ job_id:j.id, status:'pending' });
-      if (j.willSucceed) return ok({ job_id:j.id, status:'done', file_path:buildCsv(j.student), filename:'my_applications.csv' });
+      if (j.willSucceed) return ok({ job_id:j.id, status:'done', file_path:`/student/export/${j.id}/download`, filename:'my_applications.csv' });
       return ok({ job_id:j.id, status:'failed', error:'Export worker failed to generate the file. Please retry.' });
+    }
+    if (method === 'get' && (m = path.match(/^\/student\/export\/(\w+)\/download$/))) {
+      const j = exportJobs[m[1]]; if (!j) return fail(404, 'Export job not found');
+      if (!j.willSucceed) return fail(410, 'Export job failed', 'EXPORT_FAILED');
+      const csv = buildCsv(j.student);
+      const blob = new Blob([csv], { type:'text/csv' });
+      return { status:200, statusText:'OK', data:blob, headers:{ 'content-type':'text/csv' }, config:{} };
     }
   }
 

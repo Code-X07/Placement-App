@@ -26,7 +26,7 @@ export default {
         <div class="row g-3 mb-4">
           <div class="col-lg-8">
             <div class="card-soft h-100" style="padding:40px">
-              <h1 style="font-size:34px;margin-bottom:10px">Welcome back, {{ dash.name.split(' ')[0] }}!</h1>
+              <h1 style="font-size:34px;margin-bottom:10px">Welcome back, {{ (dash.name || '').split(' ')[0] }}!</h1>
               <p class="page-sub" style="font-size:17px;max-width:560px">Your placement journey is looking promising. Keep up the good work and prepare for your upcoming assessments.</p>
             </div>
           </div>

@@ -50,7 +50,7 @@ export default {
       try {
         const formData = new FormData();
         formData.append('resume', f);
-        await api.post('/student/profile/resume', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+        await api.post('/student/profile/resume', formData, { headers: { 'Content-Type': undefined } });
         this.resumeName = f.name;
         this.$bus.$emit('toast', { type: 'success', msg: 'Resume uploaded.' });
       } catch (err) { this.resumeError = 'Upload failed.'; }
