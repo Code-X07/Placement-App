@@ -59,3 +59,10 @@ def test_application_unique_constraint(app):
         db.session.add(a2)
         with pytest.raises(IntegrityError):
             db.session.commit()
+
+def test_user_created_at_is_timezone_aware(app):
+    with app.app_context():
+        u = User(email='tz@t.com', password_hash='x', role='student', is_active=True)
+        db.session.add(u); db.session.commit()
+        assert u.created_at is not None
+        assert u.created_at.tzinfo is not None
