@@ -13,7 +13,7 @@ def _own_company():
     return CompanyProfile.query.filter_by(user_id=int(user_id)).first_or_404()
 
 @company_bp.route('/dashboard', methods=['GET'])
-@role_required('company')
+@role_required('company', require_approved=False)
 def dashboard():
     from cache import cache_get, cache_set
     user_id = get_jwt_identity()

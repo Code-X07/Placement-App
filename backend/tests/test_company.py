@@ -1,5 +1,21 @@
 from datetime import date, timedelta
 
+def test_pending_company_can_view_dashboard(client, company_user):
+    headers = {'Authorization': f"Bearer {company_user['token']}"}
+    resp = client.get('/api/company/dashboard', headers=headers)
+    assert resp.status_code == 200
+    assert resp.json['approval_status'] == 'pending'
+
+def test_pending_company_cannot_create_drive(client, company_user):
+    headers = {'Authorization': f"Bearer {company_user['token']}"}
+    resp = client.post('/api/company/drives', headers=headers, json={
+        'title': 'X', 'description': 'Y', 'ctc': 5.0, 'location': 'Z',
+        'eligibility_cgpa': 6.0, 'eligibility_branch': ['CS'],
+        'application_deadline': str(date.today() + timedelta(days=10))
+    })
+    assert resp.status_code == 403
+    assert resp.json['code'] == 'NOT_APPROVED'
+
 def test_unapproved_company_blocked(client, company_user):
     headers = {'Authorization': f"Bearer {company_user['token']}"}
     resp = client.post('/api/company/drives', headers=headers, json={
