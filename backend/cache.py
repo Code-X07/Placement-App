@@ -13,7 +13,5 @@ def cache_set(key, value, ttl=300):
     redis_client.setex(key, ttl, json.dumps(value, default=str))
 
 def cache_delete(*keys):
-    if redis_client is None:
-        return
-    for key in keys:
-        redis_client.delete(key)
+    if redis_client and keys:
+        redis_client.delete(*keys)

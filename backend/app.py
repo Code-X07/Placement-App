@@ -1,18 +1,11 @@
 import os
 import redis as redis_lib
 from flask import Flask, send_from_directory
-from flask_jwt_extended import JWTManager
-from flask_bcrypt import Bcrypt
-from flask_mail import Mail
 from flask_cors import CORS
-from celery import Celery
 from config import Config
 from models.models import db
+from extensions import bcrypt, jwt, mail, celery
 
-bcrypt = Bcrypt()
-jwt = JWTManager()
-mail = Mail()
-celery = Celery()
 redis_client = None
 
 def create_app(config=None):
@@ -25,11 +18,17 @@ def create_app(config=None):
     else:
         app.config.update(config)
 
+    if os.environ.get('FLASK_ENV') == 'production':
+        for key in ('SECRET_KEY', 'JWT_SECRET_KEY'):
+            if app.config.get(key) in (None, '', 'dev-secret-key', 'dev-jwt-secret'):
+                raise RuntimeError(f'{key} must be set via environment in production')
+
     db.init_app(app)
     bcrypt.init_app(app)
     jwt.init_app(app)
     mail.init_app(app)
-    CORS(app, resources={r"/api/*": {"origins": "*"}})
+    cors_origins = os.environ.get('CORS_ORIGINS', '*')
+    CORS(app, resources={r"/api/*": {"origins": cors_origins.split(',')}})
 
     # Load beat_schedule from the config class (Flask only auto-loads uppercase keys)
     beat_schedule_value = {}
@@ -64,7 +63,9 @@ def create_app(config=None):
             redis_client = redis_lib.from_url(redis_url)
         else:
             redis_client = None
-    except Exception:
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning('Redis unavailable, caching disabled: %s', e)
         redis_client = None
 
     with app.app_context():
@@ -95,9 +96,11 @@ def create_app(config=None):
 def _seed_admin():
     from models.models import User
     if not User.query.filter_by(role='admin').first():
+        from flask import current_app
         admin = User(
-            email='admin@ppa.com',
-            password_hash=bcrypt.generate_password_hash('admin123').decode('utf-8'),
+            email=current_app.config.get('ADMIN_EMAIL', 'admin@ppa.com'),
+            password_hash=bcrypt.generate_password_hash(
+                os.environ.get('ADMIN_PASSWORD', 'admin123')).decode('utf-8'),
             role='admin',
             is_active=True,
         )
@@ -106,4 +109,5 @@ def _seed_admin():
 
 if __name__ == '__main__':
     app = create_app()
-    app.run(debug=True, port=5000)
+    debug = os.environ.get('FLASK_DEBUG', 'false').lower() == 'true'
+    app.run(debug=debug, port=5000)
