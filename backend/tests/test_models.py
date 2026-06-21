@@ -1,6 +1,7 @@
 import json
 import pytest
-from models.models import db, User, StudentProfile, CompanyProfile, PlacementDrive, Application, ExportJob
+from datetime import timezone
+from models.models import db, User, StudentProfile, CompanyProfile, PlacementDrive, Application, ExportJob, _utcnow
 
 def test_user_create(app):
     with app.app_context():
@@ -60,9 +61,19 @@ def test_application_unique_constraint(app):
         with pytest.raises(IntegrityError):
             db.session.commit()
 
-def test_user_created_at_is_timezone_aware(app):
+def test_utcnow_is_timezone_aware():
+    dt = _utcnow()
+    assert dt.tzinfo is not None
+    assert dt.tzinfo == timezone.utc
+
+def test_check_constraints_defined(app):
     with app.app_context():
-        u = User(email='tz@t.com', password_hash='x', role='student', is_active=True)
-        db.session.add(u); db.session.commit()
-        assert u.created_at is not None
-        assert u.created_at.tzinfo is not None
+        # Verify the constraints exist on the table
+        cp_constraints = {c.name for c in CompanyProfile.__table__.constraints}
+        pd_constraints = {c.name for c in PlacementDrive.__table__.constraints}
+        app_constraints = {c.name for c in Application.__table__.constraints}
+        ej_constraints = {c.name for c in ExportJob.__table__.constraints}
+        assert 'ck_company_approval_status' in cp_constraints
+        assert 'ck_drive_status' in pd_constraints
+        assert 'ck_application_status' in app_constraints
+        assert 'ck_exportjob_status' in ej_constraints

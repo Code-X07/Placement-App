@@ -1,27 +1,10 @@
 from datetime import datetime, timezone
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import TypeDecorator
-from sqlalchemy.types import DateTime as DbDateTime
 
 db = SQLAlchemy()
 
 def _utcnow():
     return datetime.now(timezone.utc)
-
-class TZDateTime(TypeDecorator):
-    """DateTime type that ensures timezone-aware datetimes."""
-    impl = DbDateTime
-    cache_ok = True
-
-    def process_bind_param(self, value, dialect):
-        if value is not None and value.tzinfo is None:
-            value = value.replace(tzinfo=timezone.utc)
-        return value
-
-    def process_result_value(self, value, dialect):
-        if value is not None and value.tzinfo is None:
-            value = value.replace(tzinfo=timezone.utc)
-        return value
 
 class User(db.Model):
     __tablename__ = 'users'
@@ -30,7 +13,7 @@ class User(db.Model):
     password_hash = db.Column(db.String(128), nullable=False)
     role = db.Column(db.String(20), nullable=False)      # admin|company|student
     is_active = db.Column(db.Boolean, default=True, nullable=False)
-    created_at = db.Column(TZDateTime, default=_utcnow)
+    created_at = db.Column(db.DateTime, default=_utcnow)
 
     student_profile = db.relationship('StudentProfile', backref='user',
                                       uselist=False, cascade='all, delete-orphan')
@@ -84,7 +67,7 @@ class PlacementDrive(db.Model):
     eligibility_branch = db.Column(db.Text)  # JSON array string e.g. '["CS","IT"]'
     application_deadline = db.Column(db.Date)
     status = db.Column(db.String(20), default='pending', nullable=False)
-    created_at = db.Column(TZDateTime, default=_utcnow)
+    created_at = db.Column(db.DateTime, default=_utcnow)
     department = db.Column(db.String(100))
 
     __table_args__ = (
@@ -100,7 +83,7 @@ class Application(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     student_id = db.Column(db.Integer, db.ForeignKey('student_profiles.id'), nullable=False)
     drive_id = db.Column(db.Integer, db.ForeignKey('placement_drives.id'), nullable=False)
-    applied_at = db.Column(TZDateTime, default=_utcnow)
+    applied_at = db.Column(db.DateTime, default=_utcnow)
     status = db.Column(db.String(20), default='applied', nullable=False)
 
     __table_args__ = (
@@ -116,7 +99,7 @@ class ExportJob(db.Model):
     celery_task_id = db.Column(db.String(100))
     status = db.Column(db.String(20), default='pending', nullable=False)  # pending|done|failed
     file_path = db.Column(db.String(255))
-    created_at = db.Column(TZDateTime, default=_utcnow)
+    created_at = db.Column(db.DateTime, default=_utcnow)
 
     __table_args__ = (
         db.CheckConstraint("status IN ('pending','done','failed')",
