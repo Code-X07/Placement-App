@@ -5,7 +5,7 @@ from flask import Blueprint, request, jsonify, current_app, send_from_directory
 from flask_jwt_extended import get_jwt_identity
 from werkzeug.utils import secure_filename
 from routes.decorators import role_required
-from models.models import db, StudentProfile, PlacementDrive, Application, ExportJob, User
+from models.models import db, StudentProfile, PlacementDrive, Application, ExportJob
 
 student_bp = Blueprint('student', __name__, url_prefix='/api/student')
 
@@ -46,7 +46,11 @@ def update_profile():
                             'code': 'INVALID_CGPA'}), 400
         sp.cgpa = cgpa
     db.session.commit()
-    return jsonify({'message': 'Profile updated'}), 200
+    return jsonify({
+        'name': sp.name, 'phone': sp.phone, 'branch': sp.branch,
+        'year': sp.year, 'cgpa': sp.cgpa, 'resume_path': sp.resume_path,
+        'email': sp.user.email
+    }), 200
 
 @student_bp.route('/dashboard', methods=['GET'])
 @role_required('student')
@@ -96,18 +100,18 @@ def upload_resume():
 @role_required('student')
 def list_drives():
     sp = _own_student()
-    all_drives_raw = PlacementDrive.query.filter_by(status='approved').all()
+    today = date.today()
+    all_drives_raw = PlacementDrive.query.filter_by(status='approved').filter(
+        PlacementDrive.application_deadline >= today
+    ).all()
 
     # Load all student applications once to avoid N+1 queries
     student_app_drive_ids = {
         a.drive_id for a in Application.query.filter_by(student_id=sp.id).all()
     }
 
-    today = date.today()
     result = []
     for d in all_drives_raw:
-        if d.application_deadline < today:
-            continue
         applied, eligible, reasons = _elig_state(sp, d, student_app_drive_ids)
         result.append({
             'id': d.id,
@@ -128,26 +132,20 @@ def list_drives():
 @role_required('student')
 def apply(drive_id):
     sp = _own_student()
-    drive = PlacementDrive.query.get_or_404(drive_id)
-    if drive.status != 'approved':
-        return jsonify({'error': 'Drive not approved', 'code': 'DRIVE_NOT_APPROVED'}), 400
-    if drive.application_deadline < date.today():
-        return jsonify({'error': 'Application deadline has passed',
+    drive = db.session.get(PlacementDrive, drive_id)
+    if drive is None:
+        return jsonify({'error': 'Drive not found', 'code': 'NOT_FOUND'}), 404
+    if drive.status != 'approved' or drive.application_deadline < date.today():
+        return jsonify({'error': 'This drive is not open for applications',
                         'code': 'NOT_OPEN'}), 400
-    if sp.cgpa is None or sp.cgpa < (drive.eligibility_cgpa or 0):
-        return jsonify({'error': 'CGPA below drive requirement',
-                        'code': 'INELIGIBLE_CGPA'}), 400
-    if sp.branch and drive.eligibility_branch:
-        try:
-            allowed = json.loads(drive.eligibility_branch)
-        except (ValueError, TypeError):
-            allowed = []
-        if sp.branch not in allowed:
-            return jsonify({'error': 'Branch not eligible for this drive',
-                            'code': 'INELIGIBLE_BRANCH'}), 400
+    # already-applied takes precedence over eligibility (matches mock.js order)
     if Application.query.filter_by(student_id=sp.id, drive_id=drive_id).first():
-        return jsonify({'error': 'Already applied to this drive',
-                        'code': 'ALREADY_APPLIED'}), 409
+        return jsonify({'error': 'You have already applied to this drive',
+                        'code': 'DUPLICATE'}), 409
+    _, eligible, reasons = _elig_state(sp, drive, set())
+    if not eligible:
+        return jsonify({'error': '; '.join(reasons) or 'Not eligible',
+                        'code': 'INELIGIBLE', 'reasons': reasons}), 400
     app_obj = Application(student_id=sp.id, drive_id=drive_id, status='applied')
     db.session.add(app_obj)
     db.session.commit()
@@ -186,9 +184,11 @@ def trigger_export():
 @role_required('student')
 def export_status(job_id):
     sp = _own_student()
-    job = ExportJob.query.get_or_404(job_id)
+    job = db.session.get(ExportJob, job_id)
+    if job is None:
+        return jsonify({'error': 'Export job not found', 'code': 'NOT_FOUND'}), 404
     if job.student_id != sp.id:
-        return jsonify({'error': 'Access denied', 'code': 'FORBIDDEN'}), 403
+        return jsonify({'error': 'Export job not found', 'code': 'NOT_FOUND'}), 404
     resp = {'job_id': job.id, 'status': job.status}
     if job.status == 'done' and job.file_path:
         resp['file_path'] = f'/student/export/{job.id}/download'
@@ -201,9 +201,11 @@ def export_status(job_id):
 @role_required('student')
 def download_export(job_id):
     sp = _own_student()
-    job = ExportJob.query.get_or_404(job_id)
+    job = db.session.get(ExportJob, job_id)
+    if job is None:
+        return jsonify({'error': 'Export job not found', 'code': 'NOT_FOUND'}), 404
     if job.student_id != sp.id:
-        return jsonify({'error': 'Access denied', 'code': 'FORBIDDEN'}), 403
+        return jsonify({'error': 'Export job not found', 'code': 'NOT_FOUND'}), 404
     if job.status != 'done' or not job.file_path:
         return jsonify({'error': 'Export not ready', 'code': 'NOT_READY'}), 404
     directory = os.path.join(current_app.root_path, 'uploads', 'exports')
@@ -231,13 +233,14 @@ def _elig_state(sp, drive, applied_drive_ids):
     if applied:
         reasons.append("Already applied")
 
-    # Check CGPA eligibility
-    if sp.cgpa is not None and drive.eligibility_cgpa is not None and sp.cgpa < drive.eligibility_cgpa:
-        reasons.append(f"Requires CGPA ≥ {drive.eligibility_cgpa:.1f}")
+    # Check CGPA eligibility (a drive with eligibility_cgpa 0/None imposes no bar)
+    if drive.eligibility_cgpa:
+        if sp.cgpa is None or sp.cgpa < drive.eligibility_cgpa:
+            reasons.append(f"Requires CGPA ≥ {drive.eligibility_cgpa:.1f}")
 
-    # Check branch eligibility
+    # Check branch eligibility (empty branch list imposes no bar)
     branches = _parse_eligibility_branch(drive.eligibility_branch)
-    if branches and sp.branch and sp.branch not in branches:
+    if branches and (not sp.branch or sp.branch not in branches):
         reasons.append("Branch not eligible")
 
     # Eligible if no reasons, or only "Already applied"

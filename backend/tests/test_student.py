@@ -3,6 +3,14 @@ from datetime import date, timedelta
 def _stu(client, student_user):
     return {'Authorization': f"Bearer {student_user['token']}"}
 
+def _student_headers(client, cgpa=None, branch=None):
+    r = client.post('/api/auth/register', json={
+        'email': f'sx{cgpa}{branch}@t.com', 'password': 'pw1234', 'role': 'student', 'name': 'Sx'})
+    h = {'Authorization': f"Bearer {r.json['token']}"}
+    if cgpa is not None or branch is not None:
+        client.put('/api/student/profile', headers=h, json={'cgpa': cgpa or 0, 'branch': branch or ''})
+    return h
+
 def _set_profile(client, headers, cgpa=8.0, branch='CS'):
     client.put('/api/student/profile', headers=headers, json={
         'name': 'Alice', 'phone': '9876543210', 'branch': branch, 'year': 3, 'cgpa': cgpa
@@ -66,6 +74,7 @@ def test_double_apply_rejected(client, student_user, approved_drive):
     client.post(f'/api/student/drives/{approved_drive}/apply', headers=headers)
     resp = client.post(f'/api/student/drives/{approved_drive}/apply', headers=headers)
     assert resp.status_code == 409
+    assert resp.json['code'] == 'DUPLICATE'
 
 def test_cgpa_too_low_rejected(client, student_user, approved_drive):
     headers = _stu(client, student_user)
@@ -74,7 +83,7 @@ def test_cgpa_too_low_rejected(client, student_user, approved_drive):
     })
     resp = client.post(f'/api/student/drives/{approved_drive}/apply', headers=headers)
     assert resp.status_code == 400
-    assert resp.json['code'] == 'INELIGIBLE_CGPA'
+    assert resp.json['code'] == 'INELIGIBLE'
 
 def test_dashboard(client, student_user, approved_drive):
     """Test dashboard returns name, branch, counts, and recommended."""
@@ -128,8 +137,8 @@ def test_export_status_idor(client, student_user):
     })
     stu2_headers = {'Authorization': f"Bearer {stu2.json['token']}"}
     resp = client.get(f'/api/student/export/{job_id}', headers=stu2_headers)
-    assert resp.status_code == 403
-    assert resp.json['code'] == 'FORBIDDEN'
+    assert resp.status_code == 404
+    assert resp.json['code'] == 'NOT_FOUND'
 
 def test_export_status_returns_file_path_and_filename(client, student_user):
     """Test export_status returns file_path and filename on done."""
@@ -171,7 +180,7 @@ def test_export_download_idor(client, student_user):
     })
     stu2_headers = {'Authorization': f"Bearer {stu2.json['token']}"}
     resp = client.get(f'/api/student/export/{job_id}/download', headers=stu2_headers)
-    assert resp.status_code == 403
+    assert resp.status_code == 404
 
 def test_upload_resume_returns_correct_fields(client, student_user):
     """Test upload_resume returns resume_path and filename."""
@@ -185,3 +194,61 @@ def test_upload_resume_returns_correct_fields(client, student_user):
     assert 'resume_path' in resp.json
     assert 'filename' in resp.json
     assert resp.json['resume_path'].startswith('uploads/resumes/')
+
+def test_apply_ineligible_uses_single_code(client, approved_drive):
+    # student with low CGPA for a drive requiring 6.0
+    h = _student_headers(client, cgpa=4.0, branch='CS')
+    resp = client.post(f'/api/student/drives/{approved_drive}/apply', headers=h)
+    assert resp.status_code == 400
+    assert resp.json['code'] == 'INELIGIBLE'
+    assert isinstance(resp.json['reasons'], list)
+
+def test_apply_duplicate_uses_duplicate_code(client, approved_drive):
+    h = _student_headers(client, cgpa=8.0, branch='CS')
+    client.post(f'/api/student/drives/{approved_drive}/apply', headers=h)
+    resp = client.post(f'/api/student/drives/{approved_drive}/apply', headers=h)
+    assert resp.status_code == 409
+    assert resp.json['code'] == 'DUPLICATE'
+
+def test_apply_duplicate_takes_precedence_over_ineligibility(client, approved_drive):
+    # eligible apply, then student's CGPA is dropped below the bar; re-apply must still be DUPLICATE
+    h = _student_headers(client, cgpa=8.0, branch='CS')
+    client.post(f'/api/student/drives/{approved_drive}/apply', headers=h)
+    client.put('/api/student/profile', headers=h, json={'cgpa': 1.0})
+    resp = client.post(f'/api/student/drives/{approved_drive}/apply', headers=h)
+    assert resp.status_code == 409
+    assert resp.json['code'] == 'DUPLICATE'
+
+def test_apply_unapproved_drive_uses_not_open(client, approved_company_headers, admin_headers):
+    r = client.post('/api/company/drives', headers=approved_company_headers, json={
+        'title': 'Pending', 'description': 'd', 'ctc': 5.0, 'location': 'X',
+        'eligibility_cgpa': 0.0, 'eligibility_branch': [],
+        'application_deadline': str(date.today() + timedelta(days=10))})
+    drive_id = r.json['id']  # left in 'pending'
+    h = _student_headers(client, cgpa=8.0, branch='CS')
+    resp = client.post(f'/api/student/drives/{drive_id}/apply', headers=h)
+    assert resp.status_code == 400
+    assert resp.json['code'] == 'NOT_OPEN'
+
+def test_null_cgpa_student_can_apply_to_unrestricted_drive(client, approved_company_headers, admin_headers):
+    r = client.post('/api/company/drives', headers=approved_company_headers, json={
+        'title': 'Open', 'description': 'd', 'ctc': 5.0, 'location': 'X',
+        'eligibility_cgpa': 0.0, 'eligibility_branch': [],
+        'application_deadline': str(date.today() + timedelta(days=10))})
+    drive_id = r.json['id']
+    client.put(f'/api/admin/drives/{drive_id}/approve', headers=admin_headers)
+    # student that never set a CGPA
+    reg = client.post('/api/auth/register', json={
+        'email': 'nocgpa@t.com', 'password': 'pw1234', 'role': 'student', 'name': 'NoCgpa'})
+    h = {'Authorization': f"Bearer {reg.json['token']}"}
+    resp = client.post(f'/api/student/drives/{drive_id}/apply', headers=h)
+    assert resp.status_code == 201
+    assert resp.json['ok'] is True
+
+def test_put_profile_returns_full_profile(client, student_user):
+    h = {'Authorization': f"Bearer {student_user['token']}"}
+    resp = client.put('/api/student/profile', headers=h, json={'phone': '999', 'branch': 'CS'})
+    assert resp.status_code == 200
+    assert resp.json['branch'] == 'CS'
+    assert resp.json['phone'] == '999'
+    assert 'email' in resp.json
