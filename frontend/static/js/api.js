@@ -34,7 +34,7 @@ api.interceptors.response.use(
     if (res.status === 401) {
       bus.$emit('auth-expired');                       // main.js clears auth + routes to /login
     } else if (res.status === 403) {
-      bus.$emit('toast', { type: 'danger', msg: 'Access denied' });
+      bus.$emit('toast', { type: 'danger', msg: data.error || 'Access denied' });
     } else if (res.status >= 500) {
       bus.$emit('toast', { type: 'danger', msg: 'Something went wrong' });
     } else {
