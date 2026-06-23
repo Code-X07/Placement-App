@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 import logging
 from flask import render_template_string, current_app
 from flask_mail import Message
@@ -19,7 +19,7 @@ _REPORT_TMPL = """<html><body>
 
 @celery.task(name='tasks.report.send_monthly_report', bind=True, max_retries=3)
 def send_monthly_report(self):
-    today = date.today()
+    today = datetime.now(timezone.utc).date()
     first = today.replace(day=1)
     end = first - timedelta(days=1)
     start = end.replace(day=1)

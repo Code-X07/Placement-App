@@ -48,3 +48,24 @@ def test_reminder_continues_after_single_failure(app):
             res = send_deadline_reminders.apply()
             assert res.successful()        # task did not blow up / retry
             assert m.call_count == 2       # both recipients attempted, none skipped
+
+def test_monthly_report_runs(app):
+    from tasks.report import send_monthly_report
+    with app.app_context():
+        with patch('tasks.report.mail.send') as m:
+            res = send_monthly_report.apply()
+            assert res.successful()
+            m.assert_called_once()
+
+def test_export_idempotent_on_done_job(app):
+    job_id = _make_student_job(app)
+    with app.app_context():
+        job = db.session.get(ExportJob, job_id)
+        job.status = 'done'; job.file_path = 'uploads/exports/original.csv'
+        db.session.commit()
+    from tasks.export import export_student_data
+    with app.app_context():
+        export_student_data(job_id)
+        job = db.session.get(ExportJob, job_id)
+        assert job.status == 'done'
+        assert job.file_path == 'uploads/exports/original.csv'   # not overwritten

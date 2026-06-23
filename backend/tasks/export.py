@@ -9,6 +9,8 @@ def export_student_data(job_id):
     job = db.session.get(ExportJob, job_id)
     if not job:
         return
+    if job.status in ('done', 'failed'):
+        return
     try:
         apps = Application.query.filter_by(student_id=job.student_id).all()
         exports_dir = os.path.abspath(
