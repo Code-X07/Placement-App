@@ -47,16 +47,20 @@ def register():
     if role not in ('student', 'company'):
         return jsonify({'error': 'Invalid role — admin registration forbidden',
                         'code': 'ROLE_FORBIDDEN'}), 400
-    email = data.get('email', '').strip().lower()
+    email_raw = data.get('email', '')
     password = data.get('password', '')
-    name = (data.get('name') or '').strip()
+    name = data.get('name') or ''
+    if not isinstance(email_raw, str) or not isinstance(password, str) or not isinstance(name, str):
+        return jsonify({'error': 'Invalid input', 'code': 'INVALID_INPUT'}), 400
+    email = email_raw.strip().lower()
+    name = name.strip()
     if not email or not password:
         return jsonify({'error': 'Email and password required', 'code': 'MISSING_FIELDS'}), 400
     if not name:
         return jsonify({'error': 'Name is required', 'code': 'MISSING_FIELDS'}), 400
     if not _EMAIL_RE.match(email):
         return jsonify({'error': 'Invalid email format', 'code': 'INVALID_EMAIL'}), 400
-    if len(password) < 6:
+    if len(password) < 6 or not password.strip():
         return jsonify({'error': 'Password must be at least 6 characters',
                         'code': 'WEAK_PASSWORD'}), 400
     if User.query.filter_by(email=email).first():
@@ -100,8 +104,11 @@ def login():
     data = request.get_json()
     if not data:
         return jsonify({'error': 'No data', 'code': 'MISSING_DATA'}), 400
-    email = data.get('email', '').strip().lower()
+    email_raw = data.get('email', '')
     password = data.get('password', '')
+    if not isinstance(email_raw, str) or not isinstance(password, str):
+        return jsonify({'error': 'Invalid input', 'code': 'INVALID_INPUT'}), 400
+    email = email_raw.strip().lower()
     user = User.query.filter_by(email=email).first()
     password_valid = bcrypt.check_password_hash(
         user.password_hash if user else _DUMMY_HASH, password
@@ -118,7 +125,10 @@ def login():
 @jwt_required()
 def me():
     user_id = get_jwt_identity()
-    user = db.session.get(User, int(user_id)) if user_id else None
+    try:
+        user = db.session.get(User, int(user_id)) if user_id else None
+    except (TypeError, ValueError):
+        user = None
     if not user or not user.is_active:
         return jsonify({'error': 'Session no longer valid', 'code': 'NOT_AUTHENTICATED'}), 401
     return jsonify(user_payload(user)), 200

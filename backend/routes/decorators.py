@@ -1,7 +1,7 @@
 from functools import wraps
 from flask import jsonify
 from flask_jwt_extended import verify_jwt_in_request, get_jwt_identity
-from models.models import User, CompanyProfile
+from models.models import db, User, CompanyProfile
 
 def role_required(required_role, require_approved=True):
     def decorator(f):
@@ -10,7 +10,7 @@ def role_required(required_role, require_approved=True):
             verify_jwt_in_request()
             user_id = get_jwt_identity()
             try:
-                user = User.query.get(int(user_id))
+                user = db.session.get(User, int(user_id))
             except (TypeError, ValueError):
                 return jsonify({'error': 'Invalid token', 'code': 'INVALID_TOKEN'}), 401
             if not user or not user.is_active:

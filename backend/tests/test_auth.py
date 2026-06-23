@@ -165,3 +165,20 @@ def test_me_returns_401_for_deactivated_user(client, student_user, admin_headers
     client.put(f'/api/admin/students/{uid}/deactivate', headers=admin_headers)
     resp = client.get('/api/auth/me', headers=headers)
     assert resp.status_code == 401
+
+def test_login_nonstring_password_returns_400(client):
+    resp = client.post('/api/auth/login', json={'email': 'x@y.com', 'password': 12345})
+    assert resp.status_code == 400
+    assert resp.json['code'] == 'INVALID_INPUT'
+
+def test_register_nonstring_email_returns_400(client):
+    resp = client.post('/api/auth/register', json={
+        'email': 123, 'password': 'pw1234', 'role': 'student', 'name': 'X'})
+    assert resp.status_code == 400
+    assert resp.json['code'] == 'INVALID_INPUT'
+
+def test_register_whitespace_password_rejected(client):
+    resp = client.post('/api/auth/register', json={
+        'email': 'ws@y.com', 'password': '      ', 'role': 'student', 'name': 'X'})
+    assert resp.status_code == 400
+    assert resp.json['code'] == 'WEAK_PASSWORD'
