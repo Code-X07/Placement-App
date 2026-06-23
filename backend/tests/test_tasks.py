@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from unittest.mock import patch
 from models.models import db, ExportJob, StudentProfile, User, CompanyProfile, PlacementDrive, Application
 
@@ -24,7 +24,6 @@ def test_export_failure_marks_job_failed(app):
         assert job.status == 'failed'
 
 def _drive_with_two_applicants_due_tomorrow(app):
-    from models.models import db, User, StudentProfile, CompanyProfile, PlacementDrive, Application
     with app.app_context():
         cu = User(email='remco@x.com', password_hash='x', role='company', is_active=True)
         db.session.add(cu); db.session.flush()
@@ -32,7 +31,7 @@ def _drive_with_two_applicants_due_tomorrow(app):
         db.session.add(cp); db.session.flush()
         d = PlacementDrive(company_id=cp.id, title='T', description='d', ctc=5.0,
                            location='X', eligibility_cgpa=0.0, eligibility_branch='[]',
-                           application_deadline=date.today() + timedelta(days=1), status='approved')
+                           application_deadline=datetime.now(timezone.utc).date() + timedelta(days=1), status='approved')
         db.session.add(d); db.session.flush()
         for i in range(2):
             u = User(email=f'rem{i}@x.com', password_hash='x', role='student', is_active=True)
