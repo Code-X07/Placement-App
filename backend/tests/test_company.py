@@ -1,5 +1,12 @@
 from datetime import date, timedelta
 
+def _drive_payload(**over):
+    base = {'title': 'X', 'description': 'Y', 'ctc': 5.0, 'location': 'Z',
+            'eligibility_cgpa': 6.0, 'eligibility_branch': ['CS'],
+            'application_deadline': str(date.today() + timedelta(days=10))}
+    base.update(over)
+    return base
+
 def test_pending_company_can_view_dashboard(client, company_user):
     headers = {'Authorization': f"Bearer {company_user['token']}"}
     resp = client.get('/api/company/dashboard', headers=headers)
@@ -255,3 +262,27 @@ def test_pending_company_can_update_profile(client, company_user):
     })
     assert resp.status_code == 200
     assert resp.json['company_name'] == 'Apex Updated'
+
+def test_create_drive_rejects_negative_ctc(client, approved_company_headers):
+    resp = client.post('/api/company/drives', headers=approved_company_headers,
+                       json=_drive_payload(ctc=-5.0))
+    assert resp.status_code == 400
+    assert resp.json['code'] == 'INVALID_NUMBER'
+
+def test_create_drive_rejects_out_of_range_cgpa(client, approved_company_headers):
+    resp = client.post('/api/company/drives', headers=approved_company_headers,
+                       json=_drive_payload(eligibility_cgpa=50.0))
+    assert resp.status_code == 400
+    assert resp.json['code'] == 'INVALID_NUMBER'
+
+def test_create_drive_rejects_nonstring_branch(client, approved_company_headers):
+    resp = client.post('/api/company/drives', headers=approved_company_headers,
+                       json=_drive_payload(eligibility_branch=[1, 2]))
+    assert resp.status_code == 400
+    assert resp.json['code'] == 'INVALID_BRANCH_FORMAT'
+
+def test_create_drive_rejects_blank_title(client, approved_company_headers):
+    resp = client.post('/api/company/drives', headers=approved_company_headers,
+                       json=_drive_payload(title='   '))
+    assert resp.status_code == 400
+    assert resp.json['code'] == 'MISSING_FIELDS'

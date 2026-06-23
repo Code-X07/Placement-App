@@ -72,6 +72,9 @@ def create_drive():
     for field in required:
         if field not in data:
             return jsonify({'error': f'{field} required', 'code': 'MISSING_FIELDS'}), 400
+    for field in ('title', 'description', 'location'):
+        if not str(data.get(field, '')).strip():
+            return jsonify({'error': f'{field} must not be empty', 'code': 'MISSING_FIELDS'}), 400
     try:
         deadline = date.fromisoformat(data['application_deadline'])
     except (ValueError, TypeError):
@@ -86,7 +89,14 @@ def create_drive():
     except (ValueError, TypeError):
         return jsonify({'error': 'ctc and eligibility_cgpa must be numbers',
                         'code': 'INVALID_NUMBER'}), 400
-    if not isinstance(data['eligibility_branch'], list):
+    if ctc <= 0:
+        return jsonify({'error': 'ctc must be a positive number',
+                        'code': 'INVALID_NUMBER'}), 400
+    if not 0 <= eligibility_cgpa <= 10:
+        return jsonify({'error': 'eligibility_cgpa must be between 0 and 10',
+                        'code': 'INVALID_NUMBER'}), 400
+    if not isinstance(data['eligibility_branch'], list) or \
+            not all(isinstance(b, str) for b in data['eligibility_branch']):
         return jsonify({'error': 'eligibility_branch must be a list of strings',
                         'code': 'INVALID_BRANCH_FORMAT'}), 400
     drive = PlacementDrive(
