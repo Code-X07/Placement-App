@@ -43,8 +43,9 @@ def approve_company(company_id):
     if cp is None:
         return jsonify({'error': 'Company not found', 'code': 'NOT_FOUND'}), 404
     cp.approval_status = 'approved'
+    cp.user.is_active = True
     db.session.commit()
-    cache_delete('admin:dashboard:stats', 'drives:approved:list')
+    cache_delete('admin:dashboard:stats', f'company:{cp.user_id}:dashboard')
     return jsonify({'id': cp.id, 'approval_status': cp.approval_status}), 200
 
 @admin_bp.route('/companies/<int:company_id>/reject', methods=['PUT'])
@@ -57,8 +58,7 @@ def reject_company(company_id):
     PlacementDrive.query.filter_by(company_id=cp.id, status='approved').update(
         {'status': 'rejected'})
     db.session.commit()
-    cache_delete('admin:dashboard:stats', 'drives:approved:list',
-                 f'company:{cp.user_id}:dashboard')
+    cache_delete('admin:dashboard:stats', f'company:{cp.user_id}:dashboard')
     return jsonify({'id': cp.id, 'approval_status': cp.approval_status}), 200
 
 @admin_bp.route('/companies/<int:company_id>/blacklist', methods=['PUT'])
@@ -72,8 +72,7 @@ def blacklist_company(company_id):
     PlacementDrive.query.filter_by(company_id=cp.id, status='approved').update(
         {'status': 'rejected'})
     db.session.commit()
-    cache_delete('admin:dashboard:stats', 'drives:approved:list',
-                 f'company:{cp.user_id}:dashboard')
+    cache_delete('admin:dashboard:stats', f'company:{cp.user_id}:dashboard')
     return jsonify({'id': cp.id, 'approval_status': cp.approval_status}), 200
 
 @admin_bp.route('/drives', methods=['GET'])
@@ -93,7 +92,7 @@ def approve_drive(drive_id):
         return jsonify({'error': 'Drive not found', 'code': 'NOT_FOUND'}), 404
     drive.status = 'approved'
     db.session.commit()
-    cache_delete('admin:dashboard:stats', 'drives:approved:list')
+    cache_delete('admin:dashboard:stats')
     return jsonify({'id': drive.id, 'status': drive.status}), 200
 
 @admin_bp.route('/drives/<int:drive_id>/reject', methods=['PUT'])
@@ -104,7 +103,7 @@ def reject_drive(drive_id):
         return jsonify({'error': 'Drive not found', 'code': 'NOT_FOUND'}), 404
     drive.status = 'rejected'
     db.session.commit()
-    cache_delete('admin:dashboard:stats', 'drives:approved:list')
+    cache_delete('admin:dashboard:stats')
     return jsonify({'id': drive.id, 'status': drive.status}), 200
 
 @admin_bp.route('/students', methods=['GET'])

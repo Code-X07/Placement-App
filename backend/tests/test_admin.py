@@ -181,3 +181,19 @@ def test_search_escapes_like_wildcards(client, admin_headers, company_user):
     resp = client.get('/api/admin/search?type=student&q=%25', headers=admin_headers)
     assert resp.status_code == 200
     assert resp.json['results'] == []
+
+def test_approve_company_after_blacklist_restores_login(client, admin_headers):
+    reg = client.post('/api/auth/register', json={
+        'email': 'reco@x.com', 'password': 'pw1234', 'role': 'company', 'name': 'RecoCo'})
+    assert reg.status_code == 201
+    companies = client.get('/api/admin/companies', headers=admin_headers).json
+    cid = [c['id'] for c in companies if c['company_name'] == 'RecoCo'][0]
+    # blacklist deactivates the user
+    client.put(f'/api/admin/companies/{cid}/blacklist', headers=admin_headers)
+    blocked = client.post('/api/auth/login', json={'email': 'reco@x.com', 'password': 'pw1234'})
+    assert blocked.status_code == 403
+    assert blocked.json['code'] == 'INACTIVE'
+    # approve must restore is_active
+    client.put(f'/api/admin/companies/{cid}/approve', headers=admin_headers)
+    ok = client.post('/api/auth/login', json={'email': 'reco@x.com', 'password': 'pw1234'})
+    assert ok.status_code == 200
