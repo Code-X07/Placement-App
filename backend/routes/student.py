@@ -155,7 +155,13 @@ def apply(drive_id):
                         'code': 'INELIGIBLE', 'reasons': reasons}), 400
     app_obj = Application(student_id=sp.id, drive_id=drive_id, status='applied')
     db.session.add(app_obj)
-    db.session.commit()
+    from sqlalchemy.exc import IntegrityError
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        return jsonify({'error': 'You have already applied to this drive',
+                        'code': 'DUPLICATE'}), 409
     from cache import cache_delete
     cache_delete('admin:dashboard:stats')
     return jsonify({'ok': True}), 201
@@ -220,13 +226,14 @@ def download_export(job_id):
     return send_from_directory(directory, filename, as_attachment=True)
 
 def _parse_eligibility_branch(eligibility_branch_str):
-    """Parse eligibility_branch JSON string to list."""
+    """Parse eligibility_branch JSON string to a list (never a scalar)."""
     if not eligibility_branch_str:
         return []
     try:
-        return json.loads(eligibility_branch_str)
+        parsed = json.loads(eligibility_branch_str)
     except (ValueError, TypeError):
         return []
+    return parsed if isinstance(parsed, list) else []
 
 def _elig_state(sp, drive, applied_drive_ids):
     """
@@ -250,8 +257,8 @@ def _elig_state(sp, drive, applied_drive_ids):
     if branches and (not sp.branch or sp.branch not in branches):
         reasons.append("Branch not eligible")
 
-    # Eligible if no reasons, or only "Already applied"
-    eligible = len(reasons) == 0 or (len(reasons) == 1 and reasons[0] == "Already applied")
+    # Eligible if there are no blocking reasons (an "Already applied" note doesn't block)
+    eligible = all(r == "Already applied" for r in reasons)
 
     return applied, eligible, reasons
 

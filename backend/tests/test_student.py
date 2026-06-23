@@ -269,3 +269,43 @@ def test_upload_accepts_real_pdf(client, student_user):
                        data=data, content_type='multipart/form-data')
     assert resp.status_code == 200
     assert resp.json['filename'].endswith('.pdf')
+
+def test_parse_eligibility_branch_rejects_non_list():
+    from routes.student import _parse_eligibility_branch
+    assert _parse_eligibility_branch('"CS"') == []      # scalar JSON → []
+    assert _parse_eligibility_branch('123') == []        # non-list JSON → []
+    assert _parse_eligibility_branch('["CS","IT"]') == ['CS', 'IT']
+    assert _parse_eligibility_branch('') == []
+
+def test_applied_eligible_drive_still_marked_eligible(client, approved_drive):
+    h = _student_headers(client, cgpa=8.0, branch='CS')
+    client.post(f'/api/student/drives/{approved_drive}/apply', headers=h)
+    drives = client.get('/api/student/drives', headers=h).json
+    d = [x for x in drives if x['id'] == approved_drive][0]
+    assert d['applied'] is True
+    assert d['eligible'] is True
+    assert 'Already applied' in d['reasons']
+
+def test_application_unique_constraint(app):
+    import pytest
+    from datetime import date, timedelta
+    from sqlalchemy.exc import IntegrityError
+    from models.models import db, User, StudentProfile, CompanyProfile, PlacementDrive, Application
+    with app.app_context():
+        u = User(email='uc@x.com', password_hash='x', role='student', is_active=True)
+        db.session.add(u); db.session.flush()
+        sp = StudentProfile(user_id=u.id, name='U'); db.session.add(sp); db.session.flush()
+        cu = User(email='ucc@x.com', password_hash='x', role='company', is_active=True)
+        db.session.add(cu); db.session.flush()
+        cp = CompanyProfile(user_id=cu.id, company_name='UC', approval_status='approved')
+        db.session.add(cp); db.session.flush()
+        d = PlacementDrive(company_id=cp.id, title='T', description='d', ctc=5.0,
+                           location='X', eligibility_cgpa=0.0, eligibility_branch='[]',
+                           application_deadline=date.today() + timedelta(days=5), status='approved')
+        db.session.add(d); db.session.flush()
+        db.session.add(Application(student_id=sp.id, drive_id=d.id, status='applied'))
+        db.session.commit()
+        db.session.add(Application(student_id=sp.id, drive_id=d.id, status='applied'))
+        with pytest.raises(IntegrityError):
+            db.session.commit()
+        db.session.rollback()
