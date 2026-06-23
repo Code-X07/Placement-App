@@ -309,3 +309,24 @@ def test_application_unique_constraint(app):
         with pytest.raises(IntegrityError):
             db.session.commit()
         db.session.rollback()
+
+def test_upload_empty_file_field_returns_missing_file(client, student_user):
+    h = {'Authorization': f"Bearer {student_user['token']}"}
+    data = {'resume': (io.BytesIO(b''), '')}
+    resp = client.post('/api/student/profile/resume', headers=h,
+                       data=data, content_type='multipart/form-data')
+    assert resp.status_code == 400
+    assert resp.json['code'] == 'MISSING_FILE'
+
+def test_dashboard_recommended_capped_at_three(client, approved_company_headers, admin_headers):
+    for i in range(4):
+        r = client.post('/api/company/drives', headers=approved_company_headers, json={
+            'title': f'D{i}', 'description': 'd', 'ctc': 5.0, 'location': 'X',
+            'eligibility_cgpa': 0.0, 'eligibility_branch': [],
+            'application_deadline': str(date.today() + timedelta(days=10))})
+        client.put(f"/api/admin/drives/{r.json['id']}/approve", headers=admin_headers)
+    reg = client.post('/api/auth/register', json={
+        'email': 'dashstu@t.com', 'password': 'pw1234', 'role': 'student', 'name': 'D'})
+    h = {'Authorization': f"Bearer {reg.json['token']}"}
+    dash = client.get('/api/student/dashboard', headers=h).json
+    assert len(dash['recommended']) == 3

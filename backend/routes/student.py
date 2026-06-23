@@ -68,7 +68,7 @@ def dashboard():
     today = date.today()
     all_drives = PlacementDrive.query.filter_by(status='approved').filter(
         PlacementDrive.application_deadline >= today
-    ).all()
+    ).order_by(PlacementDrive.created_at.desc()).all()
     recommended = [_drive_dict(d) for d in all_drives[:3]]
 
     return jsonify({
@@ -85,6 +85,8 @@ def upload_resume():
     if 'resume' not in request.files:
         return jsonify({'error': 'No file provided', 'code': 'MISSING_FILE'}), 400
     f = request.files['resume']
+    if not f or not f.filename:
+        return jsonify({'error': 'No file provided', 'code': 'MISSING_FILE'}), 400
     if not f.filename.lower().endswith('.pdf'):
         return jsonify({'error': 'Only PDF files allowed',
                         'code': 'INVALID_FILE_TYPE'}), 400
