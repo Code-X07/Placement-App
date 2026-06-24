@@ -40,6 +40,12 @@ export default {
                 <div class="d-flex justify-content-between align-items-center" style="background:var(--tone-green-bg);border-radius:10px;padding:14px 16px">
                   <span class="d-flex align-items-center gap-2"><i class="bi bi-star"></i> Shortlisted</span><span style="font-size:20px;font-weight:700">{{ dash.counts.shortlisted }}</span>
                 </div>
+                <div class="d-flex justify-content-between align-items-center" style="background:var(--color-bg-surface);border-radius:10px;padding:14px 16px">
+                  <span class="d-flex align-items-center gap-2"><i class="bi bi-check2-circle"></i> Selected</span><span style="font-size:20px;font-weight:700">{{ dash.counts.selected }}</span>
+                </div>
+                <div class="d-flex justify-content-between align-items-center" style="background:var(--color-bg-surface);border-radius:10px;padding:14px 16px">
+                  <span class="d-flex align-items-center gap-2"><i class="bi bi-x-circle"></i> Rejected</span><span style="font-size:20px;font-weight:700">{{ dash.counts.rejected }}</span>
+                </div>
               </div>
             </div>
           </div>

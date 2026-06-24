@@ -133,7 +133,7 @@ function route(method, path, params, body, user) {
     if (body.role === 'student') students.push({ id:'sp_new_'+id, user_id:id, roll:'NEW', name:body.name||'New Student', email:body.email, phone:'', branch:'Computer Science', year:2026, cgpa:0, resume_path:'' });
     return ok({ token:'mock.' + id, user:userPayload(nu), role:nu.role }, 201);
   }
-  if (method === 'get' && path === '/me') {
+  if (method === 'get' && path === '/auth/me') {
     if (!user) return fail(401, 'Token missing or expired', 'NO_TOKEN');
     return ok(userPayload(user));
   }
