@@ -13,6 +13,7 @@ export default {
   name: 'DriveApplications',
   data() { return { loading: true, error: '', driveTitle: '', companyName: '', rows: [], menu: null, acting: {} }; },
   computed: { id() { return this.$route.params.id; } },
+  watch: { '$route.params.id'() { this.load(); } },
   async created() { await this.load(); },
   methods: {
     async load() {
