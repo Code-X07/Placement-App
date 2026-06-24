@@ -16,6 +16,7 @@ class Config:
     MAIL_USERNAME = os.environ.get('MAIL_USERNAME', '')
     MAIL_PASSWORD = os.environ.get('MAIL_PASSWORD', '')
     ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL', 'admin@ppa.com')
+    MAIL_DEFAULT_SENDER = os.environ.get('MAIL_DEFAULT_SENDER', 'noreply@ppa.com')
     MAX_CONTENT_LENGTH = 5 * 1024 * 1024  # 5 MB
     CELERY_TASK_ALWAYS_EAGER = False
     beat_schedule = {

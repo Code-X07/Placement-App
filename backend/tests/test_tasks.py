@@ -69,3 +69,12 @@ def test_export_idempotent_on_done_job(app):
         job = db.session.get(ExportJob, job_id)
         assert job.status == 'done'
         assert job.file_path == 'uploads/exports/original.csv'   # not overwritten
+
+def test_mail_default_sender_configured(app):
+    """Flask-Mail asserts a sender at send time; without MAIL_DEFAULT_SENDER
+    every reminder/report send raises and the email is silently dropped."""
+    from flask_mail import Message
+    with app.app_context():
+        assert app.config.get('MAIL_DEFAULT_SENDER')
+        m = Message(subject='x', recipients=['a@b.com'], body='y')
+        assert m.sender  # resolved from the configured default sender
