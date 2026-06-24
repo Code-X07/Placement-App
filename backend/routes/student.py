@@ -33,6 +33,14 @@ def get_profile():
 def update_profile():
     sp = _own_student()
     data = request.get_json() or {}
+    for field in ('name', 'phone', 'branch'):
+        if field in data and data[field] is not None and not isinstance(data[field], str):
+            return jsonify({'error': f'{field} must be a string', 'code': 'INVALID_INPUT'}), 400
+    if 'year' in data and data['year'] is not None:
+        try:
+            data['year'] = int(data['year'])
+        except (ValueError, TypeError):
+            return jsonify({'error': 'year must be an integer', 'code': 'INVALID_INPUT'}), 400
     for field in ('name', 'phone', 'branch', 'year'):
         if field in data:
             setattr(sp, field, data[field])

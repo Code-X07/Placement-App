@@ -330,3 +330,15 @@ def test_dashboard_recommended_capped_at_three(client, approved_company_headers,
     h = {'Authorization': f"Bearer {reg.json['token']}"}
     dash = client.get('/api/student/dashboard', headers=h).json
     assert len(dash['recommended']) == 3
+
+def test_update_profile_rejects_nonstring_name(client, student_user):
+    h = {'Authorization': f"Bearer {student_user['token']}"}
+    resp = client.put('/api/student/profile', headers=h, json={'name': ['Alice']})
+    assert resp.status_code == 400
+    assert resp.json['code'] == 'INVALID_INPUT'
+
+def test_update_profile_rejects_noninteger_year(client, student_user):
+    h = {'Authorization': f"Bearer {student_user['token']}"}
+    resp = client.put('/api/student/profile', headers=h, json={'year': 'senior'})
+    assert resp.status_code == 400
+    assert resp.json['code'] == 'INVALID_INPUT'

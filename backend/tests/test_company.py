@@ -286,3 +286,15 @@ def test_create_drive_rejects_blank_title(client, approved_company_headers):
                        json=_drive_payload(title='   '))
     assert resp.status_code == 400
     assert resp.json['code'] == 'MISSING_FIELDS'
+
+def test_update_profile_rejects_null_company_name(client, approved_company_headers):
+    resp = client.put('/api/company/profile', headers=approved_company_headers,
+                      json={'company_name': None})
+    assert resp.status_code == 400
+    assert resp.json['code'] == 'INVALID_INPUT'
+
+def test_update_profile_rejects_blank_company_name(client, approved_company_headers):
+    resp = client.put('/api/company/profile', headers=approved_company_headers,
+                      json={'company_name': '   '})
+    assert resp.status_code == 400
+    assert resp.json['code'] == 'INVALID_INPUT'

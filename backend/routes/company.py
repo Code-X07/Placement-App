@@ -47,6 +47,13 @@ def dashboard():
 def update_profile():
     cp = _own_company()
     data = request.get_json() or {}
+    if 'company_name' in data and (
+            not isinstance(data['company_name'], str) or not data['company_name'].strip()):
+        return jsonify({'error': 'company_name must be a non-empty string',
+                        'code': 'INVALID_INPUT'}), 400
+    for field in ('hr_contact', 'website', 'address'):
+        if field in data and data[field] is not None and not isinstance(data[field], str):
+            return jsonify({'error': f'{field} must be a string', 'code': 'INVALID_INPUT'}), 400
     for field in ('company_name', 'hr_contact', 'website', 'address'):
         if field in data:
             setattr(cp, field, data[field])
