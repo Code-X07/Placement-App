@@ -30,7 +30,7 @@ def dashboard():
         'applicant_count': Application.query.filter_by(drive_id=d.id).count()
     } for d in drives]
     active_drives = sum(1 for d in drives if d.status == 'approved')
-    total_applicants = sum(Application.query.filter_by(drive_id=d.id).count() for d in drives)
+    total_applicants = sum(d['applicant_count'] for d in drive_data)
     result = {
         'company_name': cp.company_name,
         'approval_status': cp.approval_status,

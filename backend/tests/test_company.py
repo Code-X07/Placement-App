@@ -298,3 +298,12 @@ def test_update_profile_rejects_blank_company_name(client, approved_company_head
                       json={'company_name': '   '})
     assert resp.status_code == 400
     assert resp.json['code'] == 'INVALID_INPUT'
+
+def test_dashboard_total_applicants_matches_sum(client, approved_company_headers):
+    from datetime import date, timedelta
+    client.post('/api/company/drives', headers=approved_company_headers, json={
+        'title': 'Cnt', 'description': 'd', 'ctc': 5.0, 'location': 'X',
+        'eligibility_cgpa': 0.0, 'eligibility_branch': [],
+        'application_deadline': str(date.today() + timedelta(days=10))})
+    dash = client.get('/api/company/dashboard', headers=approved_company_headers).json
+    assert dash['total_applicants'] == sum(d['applicant_count'] for d in dash['drives'])
