@@ -43,7 +43,12 @@ const routes = [
   // company
   { path: '/company',                          redirect: '/company/dashboard' },
   { path: '/company/dashboard',                component: CompanyDashboard,  meta: { role: 'company' } },
-  { path: '/company/drives/new',               component: DriveCreate,       meta: { role: 'company' } },
+  { path: '/company/drives/new', component: DriveCreate, meta: { role: 'company' },
+    beforeEnter: (to, from, next) => {
+      const u = store.state.user;
+      if (!u || u.approval_status !== 'approved') return next('/company/dashboard');
+      next();
+    } },
   { path: '/company/drives/:id/applications',  component: DriveApplications, meta: { role: 'company' } },
   { path: '/company/applications/:id/offer-letter', component: OfferLetter,  meta: { role: 'company' } },
 
