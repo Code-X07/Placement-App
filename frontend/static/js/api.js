@@ -31,7 +31,7 @@ api.interceptors.response.use(
       return Promise.reject(err);
     }
     const data = res.data || {};
-    if (res.status === 401) {
+    if (res.status === 401 || res.status === 422) {
       bus.$emit('auth-expired');                       // main.js clears auth + routes to /login
     } else if (res.status === 403) {
       bus.$emit('toast', { type: 'danger', msg: data.error || 'Access denied' });
