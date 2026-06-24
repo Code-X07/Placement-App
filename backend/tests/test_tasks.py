@@ -1,5 +1,5 @@
 from datetime import date, datetime, timedelta, timezone
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 from models.models import db, ExportJob, StudentProfile, User, CompanyProfile, PlacementDrive, Application
 
 def _make_student_job(app):
@@ -82,7 +82,6 @@ def test_mail_default_sender_configured(app):
 def test_report_retries_on_db_error_during_counts(app):
     from tasks.report import send_monthly_report
     from models.models import PlacementDrive
-    from unittest.mock import MagicMock
 
     with app.app_context():
         # Patch retry to raise so we can catch it
