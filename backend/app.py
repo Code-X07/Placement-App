@@ -1,6 +1,6 @@
 import os
 import redis as redis_lib
-from flask import Flask, send_from_directory
+from flask import Flask, send_from_directory, request, jsonify
 from flask_cors import CORS
 from config import Config
 from models.models import db
@@ -90,6 +90,18 @@ def create_app(config=None):
     def static_files(path):
         static_dir = os.path.join(app.root_path, '..', 'frontend', 'static')
         return send_from_directory(static_dir, path)
+
+    @app.errorhandler(404)
+    def _json_404(e):
+        if request.path.startswith('/api/'):
+            return jsonify({'error': 'Resource not found', 'code': 'NOT_FOUND'}), 404
+        return e
+
+    @app.errorhandler(405)
+    def _json_405(e):
+        if request.path.startswith('/api/'):
+            return jsonify({'error': 'Method not allowed', 'code': 'METHOD_NOT_ALLOWED'}), 405
+        return e
 
     return app
 
