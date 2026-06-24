@@ -15,6 +15,10 @@ class User(db.Model):
     is_active = db.Column(db.Boolean, default=True, nullable=False)
     created_at = db.Column(db.DateTime, default=_utcnow)
 
+    __table_args__ = (
+        db.CheckConstraint("role IN ('admin','company','student')", name='ck_user_role'),
+    )
+
     student_profile = db.relationship('StudentProfile', backref='user',
                                       uselist=False, cascade='all, delete-orphan')
     company_profile = db.relationship('CompanyProfile', backref='user',

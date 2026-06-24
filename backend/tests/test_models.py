@@ -66,6 +66,16 @@ def test_utcnow_is_timezone_aware():
     assert dt.tzinfo is not None
     assert dt.tzinfo == timezone.utc
 
+def test_user_role_check_constraint(app):
+    from sqlalchemy.exc import IntegrityError
+    with app.app_context():
+        u = User(email='badrole@x.com', password_hash='x',
+                 role='superadmin', is_active=True)
+        db.session.add(u)
+        with pytest.raises(IntegrityError):
+            db.session.commit()
+        db.session.rollback()
+
 def test_check_constraints_defined(app):
     with app.app_context():
         # Verify the constraints exist on the table
@@ -73,7 +83,9 @@ def test_check_constraints_defined(app):
         pd_constraints = {c.name for c in PlacementDrive.__table__.constraints}
         app_constraints = {c.name for c in Application.__table__.constraints}
         ej_constraints = {c.name for c in ExportJob.__table__.constraints}
+        user_constraints = {c.name for c in User.__table__.constraints}
         assert 'ck_company_approval_status' in cp_constraints
         assert 'ck_drive_status' in pd_constraints
         assert 'ck_application_status' in app_constraints
         assert 'ck_exportjob_status' in ej_constraints
+        assert 'ck_user_role' in user_constraints
