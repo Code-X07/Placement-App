@@ -78,3 +78,26 @@ def test_mail_default_sender_configured(app):
         assert app.config.get('MAIL_DEFAULT_SENDER')
         m = Message(subject='x', recipients=['a@b.com'], body='y')
         assert m.sender  # resolved from the configured default sender
+
+def test_report_retries_on_db_error_during_counts(app):
+    from tasks.report import send_monthly_report
+    from models.models import PlacementDrive
+    from unittest.mock import MagicMock
+
+    with app.app_context():
+        # Patch retry to raise so we can catch it
+        with patch.object(send_monthly_report, 'retry',
+                          side_effect=RuntimeError('retried')) as mock_retry:
+            # Patch only the query method to raise
+            def mock_filter(*args, **kwargs):
+                mock_qs = MagicMock()
+                mock_qs.count.side_effect = Exception('db down')
+                return mock_qs
+
+            with patch.object(PlacementDrive, 'query') as query_mock:
+                query_mock.filter = mock_filter
+                try:
+                    send_monthly_report.apply(throw=True)
+                except RuntimeError as e:
+                    assert str(e) == 'retried'
+                assert mock_retry.called  # the DB failure routed through self.retry

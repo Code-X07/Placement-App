@@ -24,18 +24,22 @@ def send_monthly_report(self):
     end = first - timedelta(days=1)
     start = end.replace(day=1)
 
-    drives = PlacementDrive.query.filter(
-        PlacementDrive.created_at >= start,
-        PlacementDrive.created_at < first,
-    ).count()
+    try:
+        drives = PlacementDrive.query.filter(
+            PlacementDrive.created_at >= start,
+            PlacementDrive.created_at < first,
+        ).count()
 
-    base_q = Application.query.filter(
-        Application.applied_at >= start,
-        Application.applied_at < first,
-    )
-    total = base_q.count()
-    shortlisted = base_q.filter(Application.status == 'shortlisted').count()
-    selected = base_q.filter(Application.status == 'selected').count()
+        base_q = Application.query.filter(
+            Application.applied_at >= start,
+            Application.applied_at < first,
+        )
+        total = base_q.count()
+        shortlisted = base_q.filter(Application.status == 'shortlisted').count()
+        selected = base_q.filter(Application.status == 'selected').count()
+    except Exception as e:
+        # transient infra (DB) — safe to retry the whole task (no email sent yet)
+        raise self.retry(exc=e, countdown=300)
 
     html = render_template_string(_REPORT_TMPL,
         month=end.strftime('%B %Y'),
