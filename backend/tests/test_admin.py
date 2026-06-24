@@ -192,7 +192,7 @@ def test_approve_company_after_blacklist_restores_login(client, admin_headers):
     client.put(f'/api/admin/companies/{cid}/blacklist', headers=admin_headers)
     blocked = client.post('/api/auth/login', json={'email': 'reco@x.com', 'password': 'pw1234'})
     assert blocked.status_code == 403
-    assert blocked.json['code'] == 'INACTIVE'
+    assert blocked.json['code'] == 'SUSPENDED'
     # approve must restore is_active
     client.put(f'/api/admin/companies/{cid}/approve', headers=admin_headers)
     ok = client.post('/api/auth/login', json={'email': 'reco@x.com', 'password': 'pw1234'})

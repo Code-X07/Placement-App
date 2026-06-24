@@ -116,6 +116,9 @@ def login():
     if not user or not password_valid:
         return jsonify({'error': 'Invalid email or password', 'code': 'BAD_CREDENTIALS'}), 401
     if not user.is_active:
+        if user.role == 'company':
+            return jsonify({'error': 'Company account has been suspended. Contact administrator.',
+                            'code': 'SUSPENDED'}), 403
         return jsonify({'error': 'Account deactivated', 'code': 'INACTIVE'}), 403
     token = create_access_token(identity=str(user.id))
     return jsonify({'token': token, 'role': user.role,
