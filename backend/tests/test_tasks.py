@@ -1,5 +1,6 @@
 from datetime import date, datetime, timedelta, timezone
 from unittest.mock import patch, MagicMock
+import pytest
 from models.models import db, ExportJob, StudentProfile, User, CompanyProfile, PlacementDrive, Application
 
 def _make_student_job(app):
@@ -95,8 +96,6 @@ def test_report_retries_on_db_error_during_counts(app):
 
             with patch.object(PlacementDrive, 'query') as query_mock:
                 query_mock.filter = mock_filter
-                try:
+                with pytest.raises(RuntimeError, match='retried'):
                     send_monthly_report.apply(throw=True)
-                except RuntimeError as e:
-                    assert str(e) == 'retried'
-                assert mock_retry.called  # the DB failure routed through self.retry
+            assert mock_retry.called  # the DB failure routed through self.retry

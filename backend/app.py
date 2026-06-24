@@ -95,13 +95,13 @@ def create_app(config=None):
     def _json_404(e):
         if request.path.startswith('/api/'):
             return jsonify({'error': 'Resource not found', 'code': 'NOT_FOUND'}), 404
-        return e
+        return e.get_response()
 
     @app.errorhandler(405)
     def _json_405(e):
         if request.path.startswith('/api/'):
             return jsonify({'error': 'Method not allowed', 'code': 'METHOD_NOT_ALLOWED'}), 405
-        return e
+        return e.get_response()
 
     return app
 
