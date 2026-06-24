@@ -44,7 +44,9 @@ export default {
     pick() { this.$refs.file.click(); },
     async onFile(e) {
       this.resumeError = '';
-      const f = e.target.files[0]; if (!f) return;
+      const f = e.target.files[0];
+      e.target.value = '';
+      if (!f) return;
       if (f.type !== 'application/pdf') { this.resumeError = 'Resume must be a PDF file.'; return; }
       if (f.size > 5 * 1024 * 1024) { this.resumeError = 'Resume must be 5MB or smaller.'; return; }
       try {
