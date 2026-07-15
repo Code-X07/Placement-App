@@ -65,7 +65,7 @@ export default {
           Don't have an account? <router-link to="/register">Register</router-link>
         </p>
         <p class="text-center mt-2 mb-0" style="font-size:12.5px;color:var(--color-text-muted)">
-          Demo: admin@ppa.com · hr@technova.example.com · recruiting@apexanalytics.example.com · alex@university.edu
+          Demo: admin@ppa.com · technova@technova.com · apex@apex.com · alex@university.edu
         </p>
       </div>
     </div>
